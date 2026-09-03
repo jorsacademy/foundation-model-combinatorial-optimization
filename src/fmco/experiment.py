@@ -12,7 +12,11 @@ from fmco.dataset import ProblemCorpus, collect_corpus
 from fmco.domain import ProblemFamily
 from fmco.generator import generate_problems
 from fmco.model import FoundationCOModel, ModelConfig
-from fmco.pretraining import PretrainingConfig, PretrainingSummary, pretrain_encoder
+from fmco.pretraining import (
+    PretrainingConfig,
+    PretrainingSummary,
+    pretrain_encoder,
+)
 from fmco.training import (
     SupervisedTrainingConfig,
     SupervisedTrainingSummary,
@@ -64,14 +68,18 @@ class ResearchConfig:
             self.rounds,
         )
         if any(value <= 0 for value in counts):
-            raise ValueError("all research counts and dimensions must be positive")
+            raise ValueError(
+                "all research counts and dimensions must be positive"
+            )
         if self.min_variables < 3 or self.max_variables < self.min_variables:
             raise ValueError("invalid in-distribution size range")
         if self.size_shift_min_variables <= self.max_variables:
             raise ValueError("size shift must be larger than the training range")
         if self.size_shift_max_variables < self.size_shift_min_variables:
             raise ValueError("invalid size-shift range")
-        if not self.transfer_shots or any(shot <= 0 for shot in self.transfer_shots):
+        if not self.transfer_shots or any(
+            shot <= 0 for shot in self.transfer_shots
+        ):
             raise ValueError("transfer_shots must contain positive values")
         if max(self.transfer_shots) > self.transfer_pool_instances:
             raise ValueError("largest transfer shot exceeds the transfer pool")
@@ -81,9 +89,11 @@ class ResearchConfig:
 class TransferRun:
     shots: int
     scratch_training: SupervisedTrainingSummary
+    multitask_only_training: SupervisedTrainingSummary
     frozen_training: SupervisedTrainingSummary
     finetune_training: SupervisedTrainingSummary
     scratch_benchmark: BenchmarkReport
+    multitask_only_benchmark: BenchmarkReport
     frozen_benchmark: BenchmarkReport
     finetune_benchmark: BenchmarkReport
 
@@ -91,9 +101,11 @@ class TransferRun:
         return {
             "shots": self.shots,
             "scratch_training": self.scratch_training.to_dict(),
+            "multitask_only_training": self.multitask_only_training.to_dict(),
             "frozen_training": self.frozen_training.to_dict(),
             "finetune_training": self.finetune_training.to_dict(),
             "scratch_benchmark": self.scratch_benchmark.to_dict(),
+            "multitask_only_benchmark": self.multitask_only_benchmark.to_dict(),
             "frozen_benchmark": self.frozen_benchmark.to_dict(),
             "finetune_benchmark": self.finetune_benchmark.to_dict(),
         }
@@ -104,7 +116,9 @@ class ResearchReport:
     config: ResearchConfig
     pretraining: PretrainingSummary
     multitask_training: SupervisedTrainingSummary
+    multitask_only_training: SupervisedTrainingSummary
     seen_benchmark: BenchmarkReport
+    multitask_only_seen_benchmark: BenchmarkReport
     size_shift_benchmark: BenchmarkReport
     structure_shift_benchmark: BenchmarkReport
     transfer_runs: tuple[TransferRun, ...]
@@ -116,9 +130,13 @@ class ResearchReport:
             "config": asdict(self.config),
             "pretraining": self.pretraining.to_dict(),
             "multitask_training": self.multitask_training.to_dict(),
+            "multitask_only_training": self.multitask_only_training.to_dict(),
             "seen_benchmark": self.seen_benchmark.to_dict(),
+            "multitask_only_seen_benchmark": self.multitask_only_seen_benchmark.to_dict(),
             "size_shift_benchmark": self.size_shift_benchmark.to_dict(),
-            "structure_shift_benchmark": self.structure_shift_benchmark.to_dict(),
+            "structure_shift_benchmark": (
+                self.structure_shift_benchmark.to_dict()
+            ),
             "transfer_runs": [run.to_dict() for run in self.transfer_runs],
             "corpus_fingerprints": self.corpus_fingerprints,
             "methodological_scope": self.methodological_scope,
@@ -161,7 +179,7 @@ def run_research_experiment(
     *,
     device: str = "cpu",
 ) -> tuple[FoundationCOModel, ResearchReport]:
-    """Run a fixed, leakage-resistant miniature foundation-model protocol."""
+    """Run a leakage-resistant miniature foundation-model protocol."""
 
     config = config or ResearchConfig()
     pretrain_problems = []
@@ -253,6 +271,32 @@ def run_research_experiment(
         device=device,
     )
 
+    # Ablation: identical architecture and supervised data, but no self-supervised
+    # encoder pre-training. This isolates the contribution of Stage 1 from the
+    # contribution of multi-task exact-label adaptation.
+    multitask_only_model = FoundationCOModel(model.config, tasks=model.tasks)
+    multitask_only_training = train_decision_model(
+        multitask_only_model,
+        train.records,
+        validation.records,
+        tasks=tuple(SEEN_FAMILIES),
+        config=SupervisedTrainingConfig(
+            epochs=config.supervised_epochs,
+            batch_size=min(8, len(train.records)),
+            patience=max(2, min(8, config.supervised_epochs // 3)),
+            seed=config.seed + 2,
+        ),
+        device=device,
+    )
+    multitask_only_seen_benchmark = evaluate_model(
+        multitask_only_model,
+        test.records,
+        model_label="multitask_without_ssl",
+        device=device,
+        include_heuristic=False,
+        include_exact=False,
+    )
+
     transfer_pool = collect_corpus(
         (TRANSFER_FAMILY,),
         instances_per_family=config.transfer_pool_instances,
@@ -273,7 +317,13 @@ def run_research_experiment(
         min_variables=config.min_variables,
         max_variables=config.max_variables,
         seed=config.seed + 800_000,
-        regimes={"set_packing": ("in_distribution", "dense_incidence", "sparse_incidence")},
+        regimes={
+            "set_packing": (
+                "in_distribution",
+                "dense_incidence",
+                "sparse_incidence",
+            )
+        },
     )
 
     transfer_runs: list[TransferRun] = []
@@ -289,6 +339,16 @@ def run_research_experiment(
         scratch = FoundationCOModel(model.config, tasks=model.tasks)
         scratch_training = train_decision_model(
             scratch,
+            shot_records,
+            transfer_validation.records,
+            tasks=(TRANSFER_FAMILY,),
+            freeze_encoder=False,
+            config=training_config,
+            device=device,
+        )
+        multitask_only_transfer = _clone(multitask_only_model)
+        multitask_only_transfer_training = train_decision_model(
+            multitask_only_transfer,
             shot_records,
             transfer_validation.records,
             tasks=(TRANSFER_FAMILY,),
@@ -324,6 +384,14 @@ def run_research_experiment(
             include_heuristic=False,
             include_exact=False,
         )
+        multitask_only_benchmark = evaluate_model(
+            multitask_only_transfer,
+            transfer_test.records,
+            model_label=f"multitask_without_ssl_{shots}shot",
+            device=device,
+            include_heuristic=False,
+            include_exact=False,
+        )
         frozen_benchmark = evaluate_model(
             frozen,
             transfer_test.records,
@@ -344,9 +412,11 @@ def run_research_experiment(
             TransferRun(
                 shots=shots,
                 scratch_training=scratch_training,
+                multitask_only_training=multitask_only_transfer_training,
                 frozen_training=frozen_training,
                 finetune_training=finetune_training,
                 scratch_benchmark=scratch_benchmark,
+                multitask_only_benchmark=multitask_only_benchmark,
                 frozen_benchmark=frozen_benchmark,
                 finetune_benchmark=finetune_benchmark,
             )
@@ -356,7 +426,9 @@ def run_research_experiment(
         config=config,
         pretraining=pretraining,
         multitask_training=multitask_training,
+        multitask_only_training=multitask_only_training,
         seen_benchmark=seen_benchmark,
+        multitask_only_seen_benchmark=multitask_only_seen_benchmark,
         size_shift_benchmark=size_shift_benchmark,
         structure_shift_benchmark=structure_shift_benchmark,
         transfer_runs=tuple(transfer_runs),
@@ -371,17 +443,21 @@ def run_research_experiment(
             "transfer_test": transfer_test.fingerprint,
         },
         methodological_scope=(
-            "Compact pretrain-transfer benchmark over four synthetic binary linear "
-            "problem families; not a claim of large-scale foundation-model status."
+            "Compact pretrain-transfer benchmark over four synthetic binary "
+            "linear problem families; not a claim of large-scale "
+            "foundation-model status."
         ),
     )
     return model, report
 
 
-def save_research_report(report: ResearchReport, path: str | Path) -> None:
+def save_research_report(
+    report: ResearchReport,
+    path: str | Path,
+) -> None:
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(
-        json.dumps(report.to_dict(), indent=2, ensure_ascii=False, allow_nan=True) + "\n",
+        json.dumps(report.to_dict(), indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
