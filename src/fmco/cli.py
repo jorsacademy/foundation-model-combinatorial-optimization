@@ -57,7 +57,7 @@ def _write_or_print(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="fmco",
-        description=("Pretrain-transfer research benchmark for combinatorial optimization."),
+        description="Pretrain-transfer research benchmark for combinatorial optimization.",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
