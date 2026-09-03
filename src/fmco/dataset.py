@@ -37,16 +37,9 @@ class LabeledProblem:
         solution = ExactSolution.from_dict(solution_payload)
         audit = problem.audit(solution.decision)
         if not audit.feasible:
-            raise ValueError(
-                f"stored exact decision for {problem.name} is infeasible"
-            )
-        if (
-            abs(problem.objective_value(solution.decision) - solution.objective)
-            > 1e-7
-        ):
-            raise ValueError(
-                f"stored objective for {problem.name} is inconsistent"
-            )
+            raise ValueError(f"stored exact decision for {problem.name} is infeasible")
+        if abs(problem.objective_value(solution.decision) - solution.objective) > 1e-7:
+            raise ValueError(f"stored objective for {problem.name} is inconsistent")
         return cls(problem=problem, solution=solution)
 
 
@@ -65,9 +58,7 @@ class ProblemCorpus:
 
     @property
     def families(self) -> tuple[str, ...]:
-        return tuple(
-            sorted({record.problem.family for record in self.records})
-        )
+        return tuple(sorted({record.problem.family for record in self.records}))
 
     @property
     def fingerprint(self) -> str:
@@ -96,9 +87,7 @@ class ProblemCorpus:
 def label_problems(
     problems: Iterable[BinaryLinearProblem],
 ) -> ProblemCorpus:
-    records = tuple(
-        LabeledProblem(problem, solve_exact(problem)) for problem in problems
-    )
+    records = tuple(LabeledProblem(problem, solve_exact(problem)) for problem in problems)
     return ProblemCorpus(
         records=records,
         metadata={"generator": "fmco", "oracle": "scipy-highs-milp"},
@@ -142,9 +131,7 @@ def collect_corpus(
             "min_variables": min_variables,
             "max_variables": max_variables,
             "seed": seed,
-            "regimes": {
-                key: list(value) for key, value in (regimes or {}).items()
-            },
+            "regimes": {key: list(value) for key, value in (regimes or {}).items()},
         },
     )
 
@@ -160,9 +147,7 @@ def save_corpus(corpus: ProblemCorpus, path: str | Path) -> None:
         "metadata": corpus.metadata,
     }
     with output.open("w", encoding="utf-8", newline="\n") as handle:
-        handle.write(
-            json.dumps(manifest, sort_keys=True, ensure_ascii=False) + "\n"
-        )
+        handle.write(json.dumps(manifest, sort_keys=True, ensure_ascii=False) + "\n")
         for record in corpus.records:
             handle.write(
                 json.dumps(
@@ -188,9 +173,7 @@ def load_corpus(path: str | Path) -> ProblemCorpus:
         payload = json.loads(line)
         if not isinstance(payload, dict) or payload.get("type") != "record":
             raise ValueError(f"line {line_number} is not a corpus record")
-        records.append(
-            LabeledProblem.from_dict(cast(dict[str, object], payload))
-        )
+        records.append(LabeledProblem.from_dict(cast(dict[str, object], payload)))
     corpus = ProblemCorpus(
         records=tuple(records),
         metadata=cast(dict[str, object], manifest.get("metadata", {})),
@@ -222,14 +205,8 @@ def split_records(
         ),
     )
     validation_indices = {int(index) for index in order[:validation_count]}
-    train = tuple(
-        record
-        for index, record in enumerate(records)
-        if index not in validation_indices
-    )
+    train = tuple(record for index, record in enumerate(records) if index not in validation_indices)
     validation = tuple(
-        record
-        for index, record in enumerate(records)
-        if index in validation_indices
+        record for index, record in enumerate(records) if index in validation_indices
     )
     return train, validation
