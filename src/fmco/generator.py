@@ -87,9 +87,7 @@ def generate_independent_set(config: GeneratorConfig) -> BinaryLinearProblem:
     elif config.regime == "in_distribution":
         probability = float(rng.uniform(0.20, 0.34))
     else:
-        raise ValueError(
-            f"unsupported independent-set regime: {config.regime}"
-        )
+        raise ValueError(f"unsupported independent-set regime: {config.regime}")
 
     upper = rng.random((n, n)) < probability
     adjacency = np.triu(upper, k=1)
