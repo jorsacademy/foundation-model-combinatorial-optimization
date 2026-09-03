@@ -72,8 +72,16 @@ def _loss_for_record(
 ) -> torch.Tensor:
     graph = featurize(record.problem).to(device)
     logits = model.decision_logits(graph, record.problem.family)
-    labels = torch.as_tensor(record.solution.decision, dtype=torch.float32, device=device)
-    objective = torch.as_tensor(record.problem.objective, dtype=torch.float32, device=device)
+    labels = torch.as_tensor(
+        record.solution.decision,
+        dtype=torch.float32,
+        device=device,
+    )
+    objective = torch.as_tensor(
+        record.problem.objective,
+        dtype=torch.float32,
+        device=device,
+    )
     return weighted_binary_decision_loss(logits, labels, objective)
 
 
@@ -119,19 +127,25 @@ def train_decision_model(
     config: SupervisedTrainingConfig | None = None,
     device: torch.device | str = "cpu",
 ) -> SupervisedTrainingSummary:
-    """Train decision adapters with exact-oracle labels and early stopping."""
+    """Train task adapters with exact-oracle labels and early stopping."""
 
     if not train_records or not validation_records:
         raise ValueError("train and validation records must be nonempty")
     config = config or SupervisedTrainingConfig()
-    selected_tasks = tasks or tuple(sorted({record.problem.family for record in train_records}))
+    selected_tasks = tasks or tuple(
+        sorted({record.problem.family for record in train_records})
+    )
     if not selected_tasks:
         raise ValueError("at least one task must be selected")
     if any(task not in model.task_to_index for task in selected_tasks):
         raise ValueError("a selected task is not registered in the model")
-    filtered_train = [record for record in train_records if record.problem.family in selected_tasks]
+    filtered_train = [
+        record for record in train_records if record.problem.family in selected_tasks
+    ]
     filtered_validation = [
-        record for record in validation_records if record.problem.family in selected_tasks
+        record
+        for record in validation_records
+        if record.problem.family in selected_tasks
     ]
     if not filtered_train or not filtered_validation:
         raise ValueError("selected tasks have no train or validation records")
@@ -149,7 +163,10 @@ def train_decision_model(
         weight_decay=config.weight_decay,
     )
     rng = np.random.default_rng(config.seed)
-    best_state = {key: value.detach().cpu().clone() for key, value in model.state_dict().items()}
+    best_state = {
+        key: value.detach().cpu().clone()
+        for key, value in model.state_dict().items()
+    }
     best_validation = float("inf")
     best_epoch = -1
     stale_epochs = 0
@@ -186,7 +203,8 @@ def train_decision_model(
             best_validation = validation_loss
             best_epoch = epoch
             best_state = {
-                key: value.detach().cpu().clone() for key, value in model.state_dict().items()
+                key: value.detach().cpu().clone()
+                for key, value in model.state_dict().items()
             }
             stale_epochs = 0
         else:
