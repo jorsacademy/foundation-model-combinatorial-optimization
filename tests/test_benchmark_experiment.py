@@ -33,9 +33,7 @@ def test_benchmark_reports_solver_grounded_controls() -> None:
     }
     assert expected <= methods
     assert all(
-        row.feasible
-        for row in report.rows
-        if row.method != "foundation_raw"
+        row.feasible for row in report.rows if row.method != "foundation_raw"
     )
     assert all(
         row.objective_gap_percent == 0.0
