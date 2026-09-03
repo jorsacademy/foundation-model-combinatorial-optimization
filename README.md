@@ -1,146 +1,160 @@
-# Foundation Model for Combinatorial Optimization
+# Foundation-Model Combinatorial Optimization
 
 [![CI](https://github.com/jorsacademy/foundation-model-combinatorial-optimization/actions/workflows/ci.yml/badge.svg)](https://github.com/jorsacademy/foundation-model-combinatorial-optimization/actions/workflows/ci.yml)
 [![Python 3.11–3.12](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)](https://www.python.org/)
 [![License: PolyForm Noncommercial 1.0.0](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-orange)](LICENSE)
 
-A verification-first **pretrain–transfer research benchmark** for studying foundation-model methodology in combinatorial optimization.
+A compact, verification-first research benchmark for studying **pre-training, multi-task learning, and few-shot transfer across combinatorial optimization problem families**.
 
-The repository does not claim to provide a frontier-scale or universal optimization foundation model. It implements the minimum scientific structure needed to test the central hypothesis:
+The repository deliberately uses the term *foundation-model benchmark* in a methodological, not scale-based, sense:
 
-> Can one shared graph encoder learn transferable representations across materially different combinatorial optimization families, then adapt to a held-out family with fewer exact-oracle labels than a model trained from scratch?
+> It tests whether a shared optimization representation can be pre-trained once, adapted with lightweight task heads, and transferred to a held-out problem family with fewer labels than training from scratch.
 
-The implementation combines:
+It is **not** presented as a large universal optimizer, a reproduction of a paper-scale model, or a state-of-the-art result. The initial release is a small, auditable laboratory in which every supervised label and every reported objective gap is grounded by an exact MILP oracle.
 
-- a unified variable–constraint bipartite representation for binary linear programs;
-- semantics-preserving graph views;
-- masked node-feature reconstruction;
-- instance-level contrastive pre-training;
-- lightweight problem-family adapters;
-- exact MILP labels;
-- task-aware feasibility repair;
-- in-distribution, structural-shift, size-shift, and held-out-task evaluation;
-- scratch, frozen-encoder, and full-fine-tuning transfer controls.
+## Research question
 
-Every reported decision is checked against the original constraints. Every objective gap is grounded in an exact SciPy/HiGHS MILP solution. The neural model is treated as a heuristic representation learner, not as an optimality certificate.
+Can a shared variable–constraint graph encoder learn reusable structure across heterogeneous binary linear optimization problems, and does that representation improve sample efficiency on a previously unseen problem family?
 
-## Why this is a foundation-model methodology project
+The experiment separates four questions:
 
-The term *foundation model* is frequently used too loosely in learning-to-optimize work. This repository operationalizes four testable properties instead of relying on model size or naming:
-
-1. **Shared backbone:** one bipartite graph encoder is used across several optimization families.
-2. **Pre-training:** the encoder first learns from solution-label-free, semantics-preserving objectives.
-3. **Lightweight adaptation:** task-specific decision heads are small relative to the shared encoder.
-4. **Transfer evaluation:** a held-out problem family is adapted with few exact labels and compared with an identical architecture trained from scratch.
-
-A small CPU model satisfying these properties is still only a methodological test bed. It is not evidence that scale, broad real-world coverage, or emergent general optimization capability has been achieved.
+1. Can semantics-preserving self-supervision learn permutation- and row-scaling-robust graph representations?
+2. Can one shared encoder support multiple optimization families through small task adapters?
+3. Does pre-training improve few-shot transfer relative to the same architecture trained from scratch?
+4. Do learned decisions remain competitive after independent feasibility repair and exact objective evaluation?
 
 ## Problem families
 
-The first release uses four NP-hard binary linear problem families.
+The first benchmark uses four binary linear problem families represented through one solver-independent schema.
 
 | Family | Objective | Core constraints | Role |
 | --- | --- | --- | --- |
-| 0/1 knapsack | maximize item value | one capacity inequality | seen during pre-training and multi-task adaptation |
-| maximum-weight independent set | maximize selected node weight | one conflict inequality per edge | seen |
-| set cover | minimize selected-set cost | one coverage inequality per element | seen |
-| set packing | maximize selected-set profit | one non-overlap inequality per element | held-out transfer task |
+| 0/1 knapsack | maximize item value | one capacity inequality | pre-training and multi-task adaptation |
+| maximum-weight independent set | maximize selected-node weight | one conflict inequality per edge | pre-training and multi-task adaptation |
+| set cover | minimize selected-set cost | one coverage inequality per element | pre-training and multi-task adaptation |
+| set packing | maximize selected-set profit | one resource-conflict inequality per element | held-out few-shot transfer |
 
-The families differ in objective sense, constraint sense, graph topology, density, and decoding logic. Set packing is excluded from the default shared-backbone training stages and introduced only during the few-shot transfer stage.
+The held-out family is excluded from the default self-supervised and supervised pre-training stages. Its adapter is learned from a small labelled set during the transfer experiment.
 
-## Unified binary linear representation
+## Unified binary-linear representation
 
-Each instance is represented as
+Each problem is written as
 
 \[
-\min\text{ or }\max\quad c^\top x
+\min\; c^\top x
+\quad\text{or}\quad
+\max\; c^\top x
 \]
 
-subject to
+subject to explicit rows
 
 \[
-A_kx\;\{\le,\ge,=\}\;b_k,
+a_k^\top x\;\{\le,=,\ge\}\;b_k,
 \qquad
 x_i\in\{0,1\}.
 \]
 
-The model does not receive family-specific Python objects. It receives a bipartite graph:
+The package validates:
 
-- one node for each binary variable;
-- one node for each linear constraint;
-- one edge for each nonzero coefficient;
-- normalized objective, row, degree, sign, and sense features;
-- a learned task token.
+- finite objective coefficients;
+- finite constraint coefficients and right-hand sides;
+- consistent variable dimensions;
+- supported objective and constraint senses;
+- binary bounds, integrality, and row violations for every candidate decision.
 
-Positive row scaling is normalized out. Variable and constraint order enter only through equivariant message passing and invariant pooling.
+Dense rows are used intentionally because the bundled research instances are small. This is not an industrial sparse-MIP interchange format.
 
-## Architecture
+## Bipartite graph encoder
+
+Every instance becomes a variable–constraint bipartite graph:
 
 ```text
-binary linear problem
-        │
-        ▼
-row-scale-normalized variable–constraint graph
-        │
-        ├── variable features
-        ├── constraint features
-        ├── coefficient edge features
-        └── task embedding
-        │
-        ▼
-shared bipartite message-passing encoder
-        │
-        ├── masked-feature reconstruction heads
-        ├── graph-level contrastive projection head
-        └── lightweight task adapter
-        │
-        ▼
-per-variable inclusion logits
-        │
-        ├── raw threshold solution       [diagnostic only]
-        └── task-aware constructive repair
-                    │
-                    ▼
-          independent feasibility audit
-                    │
-                    ▼
-             exact-MILP gap report
+variable nodes  ── coefficient edges ──  constraint nodes
+      │                                        │
+ objective, rank, degree                rhs, sense, degree
+      │                                        │
+      └──────── shared message passing ────────┘
+                         │
+                         ▼
+                reusable node embeddings
+                         │
+                task-conditioned adapter
+                         │
+                         ▼
+                 one logit per variable
 ```
 
-The encoder alternates variable-to-constraint and constraint-to-variable message passing. Aggregation uses degree-normalized sums, preserving permutation equivariance. The graph embedding pools both node types and is used only by the contrastive objective.
+The representation follows the variable–constraint graph view used in modern learning-for-MIP work, while the training protocol is organized around the shared-backbone and transfer questions emphasized by generalist and foundation-model approaches.
 
-No PyTorch Geometric dependency is required.
+### Variable features
 
-## Pre-training objectives
+- canonical minimization objective coefficient;
+- absolute objective magnitude;
+- tie-aware objective rank;
+- normalized constraint degree;
+- mean and maximum incident coefficient magnitude;
+- fraction of positive incident coefficients;
+- bias feature.
 
-### 1. Semantics-preserving views
+### Constraint features
 
-For each optimization instance, two mathematically equivalent views are sampled by:
+- normalized right-hand side;
+- normalized variable degree;
+- one-hot row sense;
+- mean and maximum coefficient magnitude;
+- bias feature.
 
-- permuting variables;
-- permuting constraints;
-- multiplying each constraint row and its right-hand side by an independent positive scalar.
+### Edge features
 
-These transformations preserve the feasible set and objective value. They are not arbitrary graph augmentations that can alter the optimization problem.
+- normalized coefficient;
+- coefficient sign;
+- absolute normalized coefficient.
 
-### 2. Masked feature reconstruction
+Each row is divided by a positive scale derived from its coefficients and right-hand side. Therefore, multiplying an entire constraint by a positive constant leaves the graph features unchanged.
 
-Random variable and constraint nodes are replaced by learned mask tokens. The encoder reconstructs their normalized features:
+## Model architecture
+
+The model consists of:
+
+- a learnable task embedding;
+- variable and constraint input projections;
+- repeated bidirectional bipartite message-passing layers;
+- mean-pooled graph embeddings;
+- masked-feature reconstruction heads;
+- a contrastive projection head;
+- one lightweight variable-decision adapter per problem family.
+
+Messages are aggregated with deterministic mean reductions. The encoder is permutation equivariant at node level and permutation invariant after graph pooling. Tests compare embeddings under variable permutations, constraint permutations, and positive row rescaling.
+
+The architecture is intentionally smaller than transformer-scale foundation models. Its purpose is to isolate the experimental protocol, not to claim architectural novelty.
+
+## Stage 1: self-supervised pre-training
+
+The shared encoder is pre-trained without using optimal decisions.
+
+For every instance, two equivalent views are sampled through:
+
+- variable permutation;
+- constraint permutation;
+- independent positive row scaling.
+
+Two objectives are optimized.
+
+### Masked feature reconstruction
+
+A subset of variable and constraint nodes is replaced by learnable mask tokens. The encoder reconstructs the original normalized features:
 
 \[
 \mathcal L_{\text{recon}}
 =
-\frac{1}{2}
-\left(
-\operatorname{MSE}_{V_{\text{mask}}}
+\operatorname{MSE}(\hat X_V,X_V)
 +
-\operatorname{MSE}_{C_{\text{mask}}}
-\right).
+\operatorname{MSE}(\hat X_C,X_C).
 \]
 
-### 3. Instance contrastive learning
+### Instance-level contrastive learning
 
-Graph embeddings from two equivalent views form a positive pair. Other instances in the batch form negatives under a symmetric InfoNCE objective:
+Graph embeddings from equivalent views are aligned with a symmetric InfoNCE objective:
 
 \[
 \mathcal L_{\text{contrast}}
@@ -153,7 +167,7 @@ Graph embeddings from two equivalent views form a positive pair. Other instances
 \right].
 \]
 
-The combined pre-training loss is
+The total loss is
 
 \[
 \mathcal L
@@ -163,117 +177,154 @@ The combined pre-training loss is
 \lambda_c\mathcal L_{\text{contrast}}.
 \]
 
-Exact solution labels are not used during this stage.
+This design mirrors two recurring ideas in graph foundation models for optimization: local structural reconstruction and instance-level representation alignment. It does not reproduce OPTFM's multi-view transformer architecture.
 
-## Multi-task adaptation
+## Stage 2: exact-oracle multi-task adaptation
 
-After self-supervised pre-training, the shared encoder and the adapters for the three seen families are trained using exact binary decisions returned by the MILP oracle.
+The pre-trained encoder is adapted jointly on knapsack, independent set, and set cover.
 
-The per-variable loss is an objective-weighted binary cross entropy. This loss is a supervised representation objective, not the final scientific metric. Multiple optimal solutions can make label accuracy misleading, so evaluation is performed with feasibility and exact objective gap.
+For each small training instance, SciPy/HiGHS solves the binary linear model exactly. A deterministic secondary solve is restricted to the primary optimal-objective band to reduce arbitrary label changes when multiple optimal solutions exist.
 
-## Held-out transfer protocol
-
-Set packing is held out from the default pre-training and seen-task adaptation corpus. For each few-shot budget, three models are compared:
-
-| Transfer method | Initialization | Trainable components |
-| --- | --- | --- |
-| `scratch` | random | full encoder and set-packing adapter |
-| `pretrained_frozen` | seen-task pretrained model | set-packing adapter and task embedding |
-| `pretrained_finetune` | seen-task pretrained model | full model |
-
-All three use:
-
-- the same architecture;
-- the same exact labels;
-- the same shot set;
-- the same validation set;
-- the same transfer test set;
-- the same optimizer family and epoch budget.
-
-This comparison separates representation transfer from gains caused by architecture, solver labels, or task-aware repair.
-
-## Exact oracle and deterministic labels
-
-SciPy's HiGHS-backed `milp` routine solves every labelled instance. The oracle runs in two stages:
-
-1. solve the primary optimization objective;
-2. constrain the primary objective to its optimum and minimize a deterministic secondary weighted sum.
-
-The secondary solve stabilizes labels when several primary-optimal binary decisions exist. It does not replace or relax the primary objective.
-
-The rounded decision is independently audited for:
-
-- binary bounds;
-- integrality;
-- every original constraint;
-- primary objective consistency.
-
-The stored corpus contains the exact decision, original objective, canonical minimization objective, solver status, node count, and runtime. A SHA-256 corpus fingerprint detects accidental data changes.
-
-## Task-aware decoding and repair
-
-A raw logit threshold is retained as a diagnostic baseline. It may be infeasible.
-
-The deployable heuristic output uses deterministic family-specific construction:
-
-- **knapsack:** score-guided capacity-feasible insertion;
-- **independent set:** score-guided conflict-free greedy selection;
-- **set cover:** score-guided coverage completion followed by redundant-set deletion;
-- **set packing:** score-guided non-overlapping set insertion.
-
-Repair never calls the exact MILP oracle. It may improve or worsen objective quality relative to raw thresholding, but it must return a feasible decision or fail closed.
-
-The benchmark also includes an objective-and-structure heuristic using the same repair layer. This distinguishes useful learned representations from gains caused solely by family-specific feasibility logic.
-
-## Evaluation metrics
-
-Classification metrics are not used as a substitute for optimization quality.
-
-For every instance and method, the benchmark records:
-
-- original feasibility;
-- objective value;
-- exact objective;
-- exact relative objective gap;
-- exact-decision match;
-- per-variable bit accuracy;
-- neural inference time;
-- decoding time;
-- total time;
-- repair steps;
-- variable, constraint, and family metadata.
-
-The gap is objective-sense aware:
+The decision loss is an objective-magnitude-weighted binary cross entropy over the exact binary assignment:
 
 \[
-\operatorname{gap}(\%)=
-\begin{cases}
-100\dfrac{z-z^*}{\max(1,|z^*|)}, & \text{minimization},\\[6pt]
-100\dfrac{z^*-z}{\max(1,|z^*|)}, & \text{maximization}.
-\end{cases}
+\mathcal L_{\text{decision}}
+=
+\frac{1}{n}
+\sum_i
+w_i\operatorname{BCEWithLogits}(s_i,x_i^*).
 \]
 
-An apparently feasible candidate that is better than the exact oracle beyond numerical tolerance aborts the experiment instead of being silently clipped.
+Training uses:
 
-## Frozen research scenarios
+- AdamW;
+- deterministic seeds;
+- mini-batches of complete problem instances;
+- gradient clipping;
+- validation early stopping;
+- restoration of the best validation checkpoint.
 
-The default research command evaluates:
+No row, variable, or pricing-state fragments from one instance are split between training and validation.
 
-1. seen families in distribution;
-2. seen families at larger variable counts;
-3. family-specific structural shifts:
-   - uncorrelated and tight-capacity knapsack;
-   - sparse and dense independent-set graphs;
-   - sparse and dense set-cover incidence;
-4. held-out set-packing transfer;
-5. sparse, nominal, and dense set-packing transfer tests;
-6. multiple few-shot budgets.
+## Stage 3: held-out few-shot transfer
 
-Every train, validation, test, size-shift, structural-shift, and transfer split uses disjoint deterministic seed ranges.
+Set packing is reserved as the default transfer family. For each shot count, four models are compared on the same training and test instances:
+
+| Method | Encoder initialization | Trainable parameters |
+| --- | --- | --- |
+| `scratch` | random | full model |
+| `multitask_without_ssl` | seen-task supervised training only | full model |
+| `pretrained_frozen` | self-supervised pre-training plus seen-task adaptation | set-packing adapter and task embedding |
+| `pretrained_finetune` | self-supervised pre-training plus seen-task adaptation | full model |
+
+This comparison distinguishes representation transfer from architecture capacity and separates the contribution of self-supervision from supervised multi-task training. All four controls use the same architecture.
+
+## Exact MILP oracle
+
+The reference solver uses `scipy.optimize.milp` with binary integrality and HiGHS.
+
+For each instance:
+
+1. the canonical minimization objective is solved;
+2. the primary optimum is recorded;
+3. a second deterministic weighted objective is optimized inside a narrow primary-objective band;
+4. the returned solution is rounded to binary values;
+5. feasibility is recomputed independently;
+6. the unperturbed original objective is recomputed independently.
+
+A supposedly exact solution is rejected if rounding violates feasibility or leaves the primary-optimality band.
+
+The exact solver serves two roles:
+
+- generating supervised labels;
+- independently evaluating every benchmark candidate.
+
+The model never sees test labels during inference.
+
+## Prediction, repair, and evaluation
+
+A neural logit vector is not treated as a feasible optimization solution.
+
+The benchmark reports two model outputs:
+
+1. `*_raw`: binary thresholding at zero;
+2. `*_repaired`: a deterministic, family-aware constructive decoder.
+
+Repair procedures do not call the exact oracle:
+
+- knapsack greedily respects capacity;
+- independent set resolves graph conflicts;
+- set cover adds sets until all elements are covered and removes redundant sets;
+- set packing greedily respects shared-resource conflicts.
+
+Every repaired result is independently audited. The experiment fails closed if a repair routine emits an infeasible decision.
+
+A non-learning objective/structure heuristic is included to distinguish representation learning from improvements caused only by task-aware repair.
+
+## Reported metrics
+
+Prediction metrics:
+
+- exact-label bit accuracy;
+- exact binary-decision match rate;
+- raw feasibility rate.
+
+Optimization metrics:
+
+- independently recomputed objective;
+- exact MILP objective;
+- objective gap with objective-sense-aware sign;
+- repaired feasibility rate;
+- worst and mean gap by method and family.
+
+Computation metrics:
+
+- neural inference time;
+- repair time;
+- exact-oracle time;
+- mean runtime and 95% normal-approximation half-width.
+
+Transfer metrics:
+
+- scratch, multi-task-without-self-supervision, frozen, and full-fine-tuning performance;
+- results by shot count;
+- performance on held-out incidence regimes.
+
+No hidden weighted leaderboard combines feasibility, quality, transfer, and runtime into one score.
+
+## Distribution-shift protocol
+
+The default research command uses disjoint seed ranges for every corpus and evaluates:
+
+1. in-distribution instances;
+2. larger variable counts than used in pre-training;
+3. uncorrelated and tight-capacity knapsack instances;
+4. dense and sparse independent-set graphs;
+5. dense and sparse set-cover incidence matrices;
+6. in-distribution, dense, and sparse held-out set-packing instances.
+
+Corpus manifests store a SHA-256 fingerprint of stable mathematical content. Runtime diagnostics are excluded from the fingerprint so the same mathematical corpus has the same identity across machines.
+
+Defaults are documented in [`configs/research_v1.json`](configs/research_v1.json). They are a reproducible research starting point, not evidence of statistical sufficiency.
+
+## Safe checkpoint format
+
+Weights are stored with `safetensors`; Python pickle is not used.
+
+Checkpoint metadata includes:
+
+- checkpoint schema version;
+- graph feature schema version;
+- model configuration;
+- registered tasks;
+- source corpus fingerprints;
+- training-stage metadata.
+
+Loading fails on incompatible schema versions or tensor shapes.
 
 ## Installation
 
-Create a virtual environment and install the package:
+Python 3.11 or 3.12 is supported.
 
 ```bash
 python -m venv .venv
@@ -282,13 +333,11 @@ python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 ```
 
-For a CPU-only PyTorch installation, install the appropriate wheel from the official PyTorch CPU index before installing the package.
-
-Core dependencies are NumPy, SciPy, PyTorch, and Safetensors. Checkpoints do not use Python pickle.
+For a CPU-only PyTorch installation, install the appropriate wheel from the official PyTorch index before installing this package.
 
 ## Quick start
 
-Generate one exact-auditable problem:
+Generate one exact-solvable instance:
 
 ```bash
 fmco generate \
@@ -298,7 +347,7 @@ fmco generate \
   --output artifacts/knapsack.json
 ```
 
-Collect an exact-labelled seen-task corpus:
+Create separate training and validation corpora:
 
 ```bash
 fmco collect \
@@ -307,26 +356,24 @@ fmco collect \
   --min-variables 8 \
   --max-variables 12 \
   --seed 1000 \
-  --output artifacts/seen-train.jsonl
-```
+  --output artifacts/train.jsonl
 
-Create a disjoint validation corpus:
-
-```bash
 fmco collect \
   --families knapsack independent_set set_cover \
   --instances-per-family 8 \
   --min-variables 8 \
   --max-variables 12 \
   --seed 2000 \
-  --output artifacts/seen-validation.jsonl
+  --output artifacts/validation.jsonl
 ```
 
-Self-supervise the shared encoder:
+Pre-train the shared encoder:
 
 ```bash
-fmco pretrain artifacts/seen-train.jsonl \
+fmco pretrain artifacts/train.jsonl \
   --epochs 20 \
+  --hidden-dim 64 \
+  --rounds 3 \
   --checkpoint artifacts/pretrained.safetensors \
   --output-report artifacts/pretraining.json
 ```
@@ -334,15 +381,16 @@ fmco pretrain artifacts/seen-train.jsonl \
 Adapt the seen-task heads:
 
 ```bash
-fmco adapt artifacts/seen-train.jsonl \
-  --validation artifacts/seen-validation.jsonl \
+fmco adapt artifacts/train.jsonl \
+  --validation artifacts/validation.jsonl \
   --input-checkpoint artifacts/pretrained.safetensors \
   --tasks knapsack independent_set set_cover \
+  --epochs 40 \
   --checkpoint artifacts/multitask.safetensors \
-  --output-report artifacts/multitask-training.json
+  --output-report artifacts/adaptation.json
 ```
 
-Solve and audit one query:
+Predict, repair, audit, and optionally compare with the exact oracle:
 
 ```bash
 fmco solve \
@@ -351,17 +399,17 @@ fmco solve \
   --with-exact
 ```
 
-Benchmark a checkpoint:
+Benchmark a labelled corpus:
 
 ```bash
-fmco benchmark artifacts/seen-validation.jsonl \
+fmco benchmark artifacts/validation.jsonl \
   --checkpoint artifacts/multitask.safetensors \
   --label multitask_pretrained \
   --output-json artifacts/benchmark.json \
   --output-csv artifacts/benchmark.csv
 ```
 
-## Full research protocol
+Run the complete frozen protocol:
 
 ```bash
 fmco research \
@@ -369,38 +417,31 @@ fmco research \
   --output-report artifacts/research-report.json
 ```
 
-The defaults are versioned in [`configs/research_v1.json`](configs/research_v1.json). The command produces:
-
-- self-supervised loss history;
-- seen-task adaptation history;
-- seen-family benchmark;
-- size-shift benchmark;
-- structure-shift benchmark;
-- scratch/frozen/fine-tuned held-out transfer comparisons;
-- exact corpus fingerprints;
-- model parameter count.
+A compact CI-scale invocation is available in the GitHub Actions workflow.
 
 ## Repository structure
 
 ```text
 src/fmco/
-├── domain.py        typed binary linear problem and feasibility audit
-├── generator.py     deterministic family and shift generators
-├── oracle.py        exact MILP oracle and deterministic tie breaking
-├── dataset.py       exact-labelled JSONL corpus and SHA-256 fingerprint
-├── features.py      scale-invariant bipartite graph representation
-├── augment.py       semantics-preserving pre-training views and masking
-├── model.py         shared encoder, task tokens, adapters, safe checkpoints
-├── losses.py        reconstruction, contrastive, and decision losses
+├── domain.py        binary-linear schema, JSON I/O, and feasibility audits
+├── generator.py     four deterministic synthetic problem generators
+├── oracle.py        exact HiGHS MILP oracle and label stabilization
+├── features.py      row-scale-invariant bipartite graph features
+├── augment.py       equivalent graph views and node masking
+├── model.py         shared encoder, task embeddings, adapters, safetensors
+├── losses.py        masked reconstruction, InfoNCE, and weighted BCE
 ├── pretraining.py   self-supervised encoder pre-training
-├── training.py      multi-task and few-shot adapter training
-├── decode.py        raw thresholding and family-specific repair
-├── benchmark.py     exact-gap evaluation and JSON/CSV reporting
-├── experiment.py    frozen train/shift/transfer protocol
+├── training.py      multi-task and frozen/full transfer adaptation
+├── decode.py        raw thresholding and family-aware feasibility repair
+├── dataset.py       exact-labelled JSONL corpora and stable fingerprints
+├── benchmark.py     solver-grounded metrics and JSON/CSV reports
+├── experiment.py    frozen shift and held-out transfer protocol
 └── cli.py           command-line interface
 ```
 
 ## Tests and CI
+
+Run locally:
 
 ```bash
 ruff check .
@@ -409,62 +450,67 @@ mypy src
 pytest
 ```
 
-The regression suite covers:
+The tests cover:
 
-- problem-schema and dimension validation;
-- deterministic generation for all four families;
-- exact MILP feasibility and known optima;
-- objective-sense-aware gaps;
-- task-aware repair feasibility;
-- row-scaling and permutation invariance of graph embeddings;
-- masked pre-training execution;
-- supervised and frozen-adapter training;
-- Safetensors checkpoint round trips;
-- solver-grounded benchmark controls;
-- the compact held-out transfer protocol;
-- CLI generation, collection, pre-training, adaptation, solving, and reporting.
+- strict problem-schema validation;
+- deterministic generators and JSON round trips;
+- exact MILP feasibility and objective checks;
+- all four family-specific repair procedures;
+- equivalent-view optimum preservation;
+- graph-embedding invariance under permutation and positive row scaling;
+- finite model forward passes;
+- safe checkpoint round trips;
+- self-supervised pre-training;
+- full and frozen-encoder adaptation;
+- solver-grounded benchmark rows;
+- the complete compact pretrain–transfer experiment;
+- CLI generation, collection, pre-training, adaptation, solve, and benchmark paths.
 
-GitHub Actions runs on Python 3.11 and 3.12. It installs a CPU PyTorch wheel, executes linting, formatting, strict type checking, branch-aware coverage, and an end-to-end pretrain–adapt–transfer smoke workflow.
+GitHub Actions runs linting, formatting, strict type checking, branch-aware coverage, and an end-to-end pretrain/adapt/solve smoke test on Python 3.11 and 3.12.
 
-## Methodological boundaries
+## Exactness and claim boundary
 
-This repository does **not** claim:
+This repository guarantees only what is checked by deterministic code:
 
-- frontier-scale foundation-model status;
-- universal coverage of combinatorial optimization;
-- state-of-the-art results on GOAL, OPTFM, RouteFinder, or ML4CO-Bench-101;
-- zero-shot solution of an unseen family;
-- optimality guarantees for neural or repaired solutions;
-- industrial-scale sparse MILP support;
-- branch-and-bound integration;
-- variable-type coverage beyond binary decisions;
-- equality-rich, nonlinear, stochastic, or multiobjective problem support;
-- superiority of pre-training before the generated experiment is run;
-- that bit accuracy is a valid proxy for decision quality;
-- that exact-oracle runtime is representative of commercial solvers;
-- that synthetic transfer necessarily predicts real operational transfer.
+- exact reference solutions under the declared finite BLP model and HiGHS tolerances;
+- independent feasibility audits;
+- objective values recomputed from the original problem;
+- gap sign checks that reject candidates appearing better than the exact reference;
+- semantics-preserving augmentations;
+- safe checkpoint deserialization.
 
-The project is a controlled falsifiable benchmark. Negative transfer, weak few-shot performance, or an objective heuristic outperforming the neural model are valid outcomes and remain visible in the report.
+It does **not** guarantee that:
+
+- a neural prediction is optimal;
+- a repaired prediction has a bounded approximation ratio;
+- few-shot transfer will outperform scratch training on every seed;
+- the small model qualifies as a production-scale foundation model;
+- synthetic transfer results generalize to industrial data;
+- the dense representation scales to large MIPLIB instances;
+- the architecture reproduces GOAL, RouteFinder, or OPTFM;
+- runtime results on small CPU instances imply solver acceleration.
+
+Negative results are valid outcomes of the protocol and should be reported.
+
+See [`docs/exactness.md`](docs/exactness.md) and [`docs/experiment_protocol.md`](docs/experiment_protocol.md).
 
 ## Research context
 
-The design is motivated by several distinct lines of work:
+The implementation is positioned relative to four methodological lines:
 
-- Gasse et al. established the variable–constraint bipartite graph as a natural neural representation for MILP.
-- RouteFinder developed shared representations and efficient adapters across vehicle-routing variants.
-- GOAL introduced a generalist backbone with lightweight problem-specific input/output adapters across routing, scheduling, and graph problems.
-- OPTFM combined node-level reconstruction and instance-level contrastive learning for hierarchical combinatorial-optimization pre-training.
-- ML4CO-Bench-101 emphasized unified, solver-grounded evaluation across graph combinatorial problems.
+1. variable–constraint bipartite representations for MILP learning;
+2. generalist shared-backbone models with problem adapters;
+3. multi-variant routing foundation models with efficient adaptation;
+4. hierarchical graph pre-training through node reconstruction and instance contrast.
 
-This repository is not a reproduction of any of those systems. It isolates their shared pretrain–transfer questions in a small auditable binary-linear benchmark.
+The code borrows these research questions, not their exact architectures or headline results. See [`docs/research_context.md`](docs/research_context.md).
 
 ## References
 
-1. Gasse, M., Chételat, D., Ferroni, N., Charlin, L., & Lodi, A. (2019). Exact Combinatorial Optimization with Graph Convolutional Neural Networks. *NeurIPS 32*. https://proceedings.neurips.cc/paper/2019/hash/d14c2267d848abeb81fd590f371d39bd-Abstract.html
-2. Berto, F., Hua, C., Gast Zepeda, N., Hottung, A., Wouda, N., Lan, L., Park, J., Tierney, K., & Park, J. (2024). RouteFinder: Towards Foundation Models for Vehicle Routing Problems. https://arxiv.org/abs/2406.15007
-3. Drakulic, D., Michel, S., & Andreoli, J.-M. (2025). GOAL: A Generalist Combinatorial Optimization Agent Learner. *ICLR 2025*. https://openreview.net/forum?id=z2z9suDRjw
-4. Yuan, H., Ouyang, W., Zhang, C., Li, C., & Sun, Y. (2025). OPTFM: A Scalable Multi-View Graph Transformer for Hierarchical Pre-Training in Combinatorial Optimization. *NeurIPS 38*. https://papers.nips.cc/paper_files/paper/2025/hash/54801e196796134a2b0ae5e8adef502f-Abstract-Conference.html
-5. Ma, J., Pan, W., Li, Y., & Yan, J. (2025). ML4CO-Bench-101: Benchmark Machine Learning for Classic Combinatorial Problems on Graphs. *NeurIPS 38, Datasets and Benchmarks Track*. https://papers.nips.cc/paper_files/paper/2025/hash/aa9340420e8d78021c35ae984e1bda85-Abstract-Datasets_and_Benchmarks_Track.html
+1. Gasse, M., Chételat, D., Ferroni, N., Charlin, L., & Lodi, A. (2019). *Exact Combinatorial Optimization with Graph Convolutional Neural Networks*. NeurIPS 2019. https://proceedings.neurips.cc/paper/2019/hash/d14c2267d848abeb81fd590f371d39bd-Abstract.html
+2. Drakulic, D., Michel, S., & Andreoli, J.-M. (2025). *GOAL: A Generalist Combinatorial Optimization Agent Learner*. ICLR 2025. https://openreview.net/forum?id=z2z9suDRjw
+3. Berto, F., Hua, C., Zepeda, N. G., et al. (2024). *RouteFinder: Towards Foundation Models for Vehicle Routing Problems*. arXiv:2406.15007. https://arxiv.org/abs/2406.15007
+4. Yuan, H., Ouyang, W., Zhang, C., Li, C., & Sun, Y. (2025). *OPTFM: A Scalable Multi-View Graph Transformer for Hierarchical Pre-Training in Combinatorial Optimization*. NeurIPS 2025. https://papers.nips.cc/paper_files/paper/2025/hash/54801e196796134a2b0ae5e8adef502f-Abstract-Conference.html
 
 ## License
 
