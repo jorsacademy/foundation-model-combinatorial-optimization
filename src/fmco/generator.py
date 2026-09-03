@@ -3,23 +3,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, cast
+from typing import cast
 
 import numpy as np
 
 from fmco.domain import BinaryLinearProblem, LinearConstraintSpec, ProblemFamily
-
-KnapsackRegime = Literal["in_distribution", "uncorrelated", "tight_capacity"]
-GraphRegime = Literal["in_distribution", "dense_graph", "sparse_graph"]
-SetRegime = Literal["in_distribution", "dense_incidence", "sparse_incidence"]
-GenerationRegime = str
 
 
 @dataclass(frozen=True, slots=True)
 class GeneratorConfig:
     family: ProblemFamily
     variable_count: int = 12
-    regime: GenerationRegime = "in_distribution"
+    regime: str = "in_distribution"
     seed: int = 0
 
     def __post_init__(self) -> None:
@@ -27,8 +22,13 @@ class GeneratorConfig:
             raise ValueError("variable_count must be at least 3")
 
 
-def _integers(rng: np.random.Generator, low: int, high: int, size: int) -> np.ndarray:
-    return rng.integers(low, high + 1, size=size, endpoint=False).astype(float)
+def _integers(
+    rng: np.random.Generator,
+    low: int,
+    high: int,
+    size: int,
+) -> np.ndarray:
+    return rng.integers(low, high + 1, size=size).astype(float)
 
 
 def generate_knapsack(config: GeneratorConfig) -> BinaryLinearProblem:
@@ -39,14 +39,23 @@ def generate_knapsack(config: GeneratorConfig) -> BinaryLinearProblem:
         values = _integers(rng, 5, 45, n)
         capacity_ratio = 0.50
     elif config.regime == "tight_capacity":
-        values = np.maximum(1.0, np.rint(1.8 * weights + rng.normal(0.0, 5.0, n)))
+        values = np.maximum(
+            1.0,
+            np.rint(1.8 * weights + rng.normal(0.0, 5.0, n)),
+        )
         capacity_ratio = 0.28
     elif config.regime == "in_distribution":
-        values = np.maximum(1.0, np.rint(1.6 * weights + rng.normal(0.0, 4.0, n)))
+        values = np.maximum(
+            1.0,
+            np.rint(1.6 * weights + rng.normal(0.0, 4.0, n)),
+        )
         capacity_ratio = float(rng.uniform(0.42, 0.58))
     else:
         raise ValueError(f"unsupported knapsack regime: {config.regime}")
-    capacity = max(float(np.min(weights)), float(np.floor(capacity_ratio * np.sum(weights))))
+    capacity = max(
+        float(np.min(weights)),
+        float(np.floor(capacity_ratio * np.sum(weights))),
+    )
     return BinaryLinearProblem(
         name=f"knapsack-n{n}-{config.regime}-seed{config.seed}",
         family="knapsack",
@@ -78,7 +87,9 @@ def generate_independent_set(config: GeneratorConfig) -> BinaryLinearProblem:
     elif config.regime == "in_distribution":
         probability = float(rng.uniform(0.20, 0.34))
     else:
-        raise ValueError(f"unsupported independent-set regime: {config.regime}")
+        raise ValueError(
+            f"unsupported independent-set regime: {config.regime}"
+        )
 
     upper = rng.random((n, n)) < probability
     adjacency = np.triu(upper, k=1)
@@ -130,7 +141,7 @@ def _incidence_matrix(
 def generate_set_cover(config: GeneratorConfig) -> BinaryLinearProblem:
     rng = np.random.default_rng(config.seed)
     n = config.variable_count
-    element_count = max(3, int(round(0.65 * n)))
+    element_count = max(3, round(0.65 * n))
     if config.regime == "dense_incidence":
         density = 0.60
     elif config.regime == "sparse_incidence":
@@ -141,7 +152,10 @@ def generate_set_cover(config: GeneratorConfig) -> BinaryLinearProblem:
         raise ValueError(f"unsupported set-cover regime: {config.regime}")
     incidence = _incidence_matrix(rng, element_count, n, density)
     coverage = np.sum(incidence, axis=0)
-    costs = np.maximum(1.0, np.rint(4.0 + 3.2 * coverage + rng.normal(0.0, 2.0, n)))
+    costs = np.maximum(
+        1.0,
+        np.rint(4.0 + 3.2 * coverage + rng.normal(0.0, 2.0, n)),
+    )
     constraints = tuple(
         LinearConstraintSpec(
             coefficients=tuple(float(value) for value in incidence[element]),
@@ -158,14 +172,17 @@ def generate_set_cover(config: GeneratorConfig) -> BinaryLinearProblem:
         objective=tuple(float(value) for value in costs),
         constraints=constraints,
         regime=config.regime,
-        metadata={"element_count": element_count, "incidence_density": density},
+        metadata={
+            "element_count": element_count,
+            "incidence_density": density,
+        },
     )
 
 
 def generate_set_packing(config: GeneratorConfig) -> BinaryLinearProblem:
     rng = np.random.default_rng(config.seed)
     n = config.variable_count
-    element_count = max(3, int(round(0.70 * n)))
+    element_count = max(3, round(0.70 * n))
     if config.regime == "dense_incidence":
         density = 0.42
     elif config.regime == "sparse_incidence":
@@ -176,7 +193,10 @@ def generate_set_packing(config: GeneratorConfig) -> BinaryLinearProblem:
         raise ValueError(f"unsupported set-packing regime: {config.regime}")
     incidence = _incidence_matrix(rng, element_count, n, density)
     sizes = np.sum(incidence, axis=0)
-    profits = np.maximum(1.0, np.rint(8.0 + 4.0 * sizes + rng.normal(0.0, 3.0, n)))
+    profits = np.maximum(
+        1.0,
+        np.rint(8.0 + 4.0 * sizes + rng.normal(0.0, 3.0, n)),
+    )
     constraints = tuple(
         LinearConstraintSpec(
             coefficients=tuple(float(value) for value in incidence[element]),
@@ -193,7 +213,10 @@ def generate_set_packing(config: GeneratorConfig) -> BinaryLinearProblem:
         objective=tuple(float(value) for value in profits),
         constraints=constraints,
         regime=config.regime,
-        metadata={"element_count": element_count, "incidence_density": density},
+        metadata={
+            "element_count": element_count,
+            "incidence_density": density,
+        },
     )
 
 
