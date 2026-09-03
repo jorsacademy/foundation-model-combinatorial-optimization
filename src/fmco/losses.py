@@ -1,4 +1,4 @@
-"""Pre-training and decision losses."""
+"""Pretraining and decision losses."""
 
 from __future__ import annotations
 
@@ -23,7 +23,8 @@ def symmetric_info_nce(
     logits = first_normalized @ second_normalized.transpose(0, 1) / temperature
     targets = torch.arange(first.shape[0], device=first.device)
     return 0.5 * (
-        F.cross_entropy(logits, targets) + F.cross_entropy(logits.transpose(0, 1), targets)
+        F.cross_entropy(logits, targets)
+        + F.cross_entropy(logits.transpose(0, 1), targets)
     )
 
 
@@ -36,7 +37,9 @@ def weighted_binary_decision_loss(
         raise ValueError("decision loss tensors must have the same shape")
     scale = objective_coefficients.abs().max().clamp_min(1.0)
     weights = 1.0 + objective_coefficients.abs() / scale
-    elementwise_loss = F.binary_cross_entropy_with_logits(
-        logits, labels, reduction="none"
+    element_loss = F.binary_cross_entropy_with_logits(
+        logits,
+        labels,
+        reduction="none",
     )
-    return torch.mean(weights * elementwise_loss)
+    return torch.mean(weights * element_loss)
