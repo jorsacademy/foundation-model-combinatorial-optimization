@@ -45,7 +45,9 @@ class LinearConstraintSpec:
 
     @classmethod
     def from_dict(cls, payload: dict[str, object]) -> LinearConstraintSpec:
-        coefficients = tuple(float(value) for value in cast(list[object], payload["coefficients"]))
+        coefficients = tuple(
+            float(value) for value in cast(list[object], payload["coefficients"])
+        )
         return cls(
             coefficients=coefficients,
             sense=cast(ConstraintSense, str(payload["sense"])),
@@ -76,11 +78,12 @@ class FeasibilityAudit:
 
 @dataclass(frozen=True, slots=True)
 class BinaryLinearProblem:
-    """A finite binary linear optimization problem.
+    """A finite dense binary linear optimization problem.
 
-    The representation is deliberately solver-independent. All variables are binary,
-    and every constraint is an explicit dense row. Small research instances are the
-    intended scope; sparse industrial models are outside this package's first version.
+    The format is intentionally solver independent and small-instance oriented. It
+    provides a common variable-constraint bipartite representation across several
+    combinatorial problem families without pretending to be an industrial MPS/LP
+    parser.
     """
 
     name: str
@@ -94,7 +97,12 @@ class BinaryLinearProblem:
     def __post_init__(self) -> None:
         if not self.name.strip():
             raise ValueError("problem name must be nonempty")
-        if self.family not in {"knapsack", "independent_set", "set_cover", "set_packing"}:
+        if self.family not in {
+            "knapsack",
+            "independent_set",
+            "set_cover",
+            "set_packing",
+        }:
             raise ValueError(f"unsupported problem family: {self.family}")
         if self.objective_sense not in {"min", "max"}:
             raise ValueError(f"unsupported objective sense: {self.objective_sense}")
@@ -108,10 +116,10 @@ class BinaryLinearProblem:
         for constraint in self.constraints:
             if len(constraint.coefficients) != self.variable_count:
                 raise ValueError(
-                    f"constraint {constraint.name!r} has {len(constraint.coefficients)} "
-                    f"coefficients; expected {self.variable_count}"
+                    f"constraint {constraint.name!r} has "
+                    f"{len(constraint.coefficients)} coefficients; "
+                    f"expected {self.variable_count}"
                 )
-        # Copy to prevent accidental external mutation despite the frozen dataclass.
         object.__setattr__(self, "metadata", dict(self.metadata))
 
     @property
@@ -130,7 +138,10 @@ class BinaryLinearProblem:
             return self.objective
         return tuple(-value for value in self.objective)
 
-    def objective_value(self, decision: tuple[int, ...] | tuple[float, ...]) -> float:
+    def objective_value(
+        self,
+        decision: tuple[int, ...] | tuple[float, ...] | np.ndarray,
+    ) -> float:
         values = np.asarray(decision, dtype=float)
         if values.shape != (self.variable_count,):
             raise ValueError("decision has the wrong shape")
@@ -154,7 +165,9 @@ class BinaryLinearProblem:
 
         lower_violation = np.maximum(0.0, -values)
         upper_violation = np.maximum(0.0, values - 1.0)
-        bound_violation = float(max(np.max(lower_violation), np.max(upper_violation)))
+        bound_violation = float(
+            max(np.max(lower_violation), np.max(upper_violation))
+        )
         integrality_violation = float(np.max(np.abs(values - np.round(values))))
 
         violations: list[float] = []
@@ -207,7 +220,9 @@ class BinaryLinearProblem:
             name=str(payload["name"]),
             family=cast(ProblemFamily, str(payload["family"])),
             objective_sense=cast(ObjectiveSense, str(payload["objective_sense"])),
-            objective=tuple(float(value) for value in cast(list[object], payload["objective"])),
+            objective=tuple(
+                float(value) for value in cast(list[object], payload["objective"])
+            ),
             constraints=constraints,
             regime=str(payload.get("regime", "in_distribution")),
             metadata=dict(metadata),
@@ -218,7 +233,8 @@ def save_problem(problem: BinaryLinearProblem, path: str | Path) -> None:
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(
-        json.dumps(problem.to_dict(), indent=2, ensure_ascii=False, sort_keys=True) + "\n",
+        json.dumps(problem.to_dict(), indent=2, ensure_ascii=False, sort_keys=True)
+        + "\n",
         encoding="utf-8",
     )
 
@@ -237,17 +253,12 @@ def relative_objective_gap(
     *,
     tolerance: float = 1e-7,
 ) -> float:
-    """Return a nonnegative minimization-style relative gap.
-
-    A candidate that appears better than the exact optimum beyond tolerance signals a
-    correctness failure and is rejected rather than clipped silently.
-    """
+    """Return a nonnegative minimization-style relative objective gap in percent."""
 
     scale = max(1.0, abs(optimum))
     raw = value - optimum if problem.objective_sense == "min" else optimum - value
     if raw < -tolerance * scale:
         raise RuntimeError(
-            f"candidate objective {value} is better than exact optimum {optimum} "
-            "beyond tolerance"
+            f"candidate objective {value} is better than exact optimum {optimum} beyond tolerance"
         )
     return 100.0 * max(0.0, raw) / scale
