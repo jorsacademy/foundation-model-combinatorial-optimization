@@ -25,9 +25,7 @@ def test_feature_shapes_and_masks() -> None:
         8,
         len(VARIABLE_FEATURE_NAMES),
     )
-    assert graph.constraint_features.shape[1] == len(
-        CONSTRAINT_FEATURE_NAMES
-    )
+    assert graph.constraint_features.shape[1] == len(CONSTRAINT_FEATURE_NAMES)
     assert graph.edge_features.shape[1] == len(EDGE_FEATURE_NAMES)
     masked = mask_graph(graph, np.random.default_rng(4), mask_rate=0.25)
     assert masked.variable_mask.any()
