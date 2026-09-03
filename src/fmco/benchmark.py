@@ -47,7 +47,7 @@ class BenchmarkRow:
 @dataclass(frozen=True, slots=True)
 class BenchmarkReport:
     rows: tuple[BenchmarkRow, ...]
-    summary: dict[str, dict[str, float]]
+    summary: dict[str, dict[str, float | None]]
     model_parameters: int
 
     def to_dict(self) -> dict[str, object]:
@@ -58,8 +58,13 @@ class BenchmarkReport:
         }
 
 
-def _bit_accuracy(decision: tuple[int, ...], exact: tuple[int, ...]) -> float:
-    return float(np.mean(np.asarray(decision, dtype=int) == np.asarray(exact, dtype=int)))
+def _bit_accuracy(
+    decision: tuple[int, ...],
+    exact: tuple[int, ...],
+) -> float:
+    return float(
+        np.mean(np.asarray(decision, dtype=int) == np.asarray(exact, dtype=int))
+    )
 
 
 def _row(
@@ -105,11 +110,18 @@ def _confidence_half_width(values: list[float]) -> float:
     return 1.96 * statistics.stdev(values) / math.sqrt(len(values))
 
 
-def _summarize(rows: list[BenchmarkRow]) -> dict[str, dict[str, float]]:
-    summary: dict[str, dict[str, float]] = {}
-    for key in sorted({f"{row.method}|{row.family}" for row in rows}):
+def _summarize(
+    rows: list[BenchmarkRow],
+) -> dict[str, dict[str, float | None]]:
+    summary: dict[str, dict[str, float | None]] = {}
+    keys = {f"{row.method}|{row.family}" for row in rows}
+    for key in sorted(keys):
         method, family = key.split("|", maxsplit=1)
-        selected = [row for row in rows if row.method == method and row.family == family]
+        selected = [
+            row
+            for row in rows
+            if row.method == method and row.family == family
+        ]
         feasible_gaps = [
             float(row.objective_gap_percent)
             for row in selected
@@ -118,25 +130,35 @@ def _summarize(rows: list[BenchmarkRow]) -> dict[str, dict[str, float]]:
         times = [row.total_seconds for row in selected]
         summary[key] = {
             "instances": float(len(selected)),
-            "feasibility_rate": statistics.fmean(float(row.feasible) for row in selected),
-            "mean_gap_percent": statistics.fmean(feasible_gaps) if feasible_gaps else float("nan"),
-            "max_gap_percent": max(feasible_gaps) if feasible_gaps else float("nan"),
+            "feasibility_rate": statistics.fmean(
+                float(row.feasible) for row in selected
+            ),
+            "mean_gap_percent": (
+                statistics.fmean(feasible_gaps) if feasible_gaps else None
+            ),
+            "max_gap_percent": max(feasible_gaps) if feasible_gaps else None,
             "exact_decision_rate": statistics.fmean(
                 float(row.exact_decision_match) for row in selected
             ),
-            "mean_bit_accuracy": statistics.fmean(row.bit_accuracy for row in selected),
+            "mean_bit_accuracy": statistics.fmean(
+                row.bit_accuracy for row in selected
+            ),
             "mean_total_seconds": statistics.fmean(times),
             "total_seconds_ci95_half_width": _confidence_half_width(times),
         }
     return summary
 
 
-def _current_exact(record: LabeledProblem, rerun_oracle: bool) -> ExactSolution:
+def _current_exact(
+    record: LabeledProblem,
+    rerun_oracle: bool,
+) -> ExactSolution:
     exact = solve_exact(record.problem) if rerun_oracle else record.solution
     scale = max(1.0, abs(record.solution.objective))
     if abs(exact.objective - record.solution.objective) > 1e-7 * scale:
         raise RuntimeError(
-            f"stored and current exact objectives disagree for {record.problem.name}"
+            "stored and current exact objectives disagree for "
+            f"{record.problem.name}"
         )
     return exact
 
@@ -165,7 +187,9 @@ def evaluate_model(
         with torch.no_grad():
             logits_tensor = model.decision_logits(graph, problem.family)
         if not torch.all(torch.isfinite(logits_tensor)):
-            raise RuntimeError(f"model produced non-finite logits for {problem.name}")
+            raise RuntimeError(
+                f"model produced non-finite logits for {problem.name}"
+            )
         inference_seconds = time.perf_counter() - started
         logits = logits_tensor.detach().cpu().numpy().astype(float)
 
@@ -198,7 +222,10 @@ def evaluate_model(
 
         if include_heuristic:
             heuristic_started = time.perf_counter()
-            heuristic = decode_and_repair(problem, objective_heuristic_logits(problem))
+            heuristic = decode_and_repair(
+                problem,
+                objective_heuristic_logits(problem),
+            )
             heuristic_seconds = time.perf_counter() - heuristic_started
             rows.append(
                 _row(
@@ -234,7 +261,7 @@ def save_report_json(report: BenchmarkReport, path: str | Path) -> None:
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(
-        json.dumps(report.to_dict(), indent=2, ensure_ascii=False, allow_nan=True) + "\n",
+        json.dumps(report.to_dict(), indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
 
