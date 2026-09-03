@@ -57,10 +57,7 @@ def _write_or_print(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="fmco",
-        description=(
-            "Pretrain-transfer research benchmark for combinatorial "
-            "optimization."
-        ),
+        description=("Pretrain-transfer research benchmark for combinatorial optimization."),
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -152,9 +149,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     research = subparsers.add_parser(
         "research",
-        help=(
-            "run the frozen pretrain, multi-task, shift, and transfer protocol"
-        ),
+        help=("run the frozen pretrain, multi-task, shift, and transfer protocol"),
     )
     research.add_argument(
         "--pretrain-instances-per-family",
@@ -229,9 +224,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
 
         if args.command == "collect":
-            families = tuple(
-                cast(ProblemFamily, family) for family in args.families
-            )
+            families = tuple(cast(ProblemFamily, family) for family in args.families)
             corpus = collect_corpus(
                 families,
                 instances_per_family=args.instances_per_family,
@@ -288,9 +281,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             corpus = load_corpus(args.corpus)
             validation = load_corpus(args.validation)
             if args.input_checkpoint:
-                model, source_metadata = load_checkpoint(
-                    args.input_checkpoint
-                )
+                model, source_metadata = load_checkpoint(args.input_checkpoint)
             else:
                 model = FoundationCOModel(
                     ModelConfig(
@@ -336,10 +327,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             graph = featurize(problem)
             started = time.perf_counter()
             with torch.no_grad():
-                logits = model.decision_logits(
-                    graph,
-                    problem.family,
-                ).cpu().numpy()
+                logits = (
+                    model.decision_logits(
+                        graph,
+                        problem.family,
+                    )
+                    .cpu()
+                    .numpy()
+                )
             inference_seconds = time.perf_counter() - started
             decoded = decode_and_repair(problem, logits)
             payload: dict[str, object] = {
@@ -349,9 +344,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "raw_audit": decoded.raw_audit.to_dict(),
                 "repaired_decision": list(decoded.repaired_decision),
                 "repaired_audit": decoded.repaired_audit.to_dict(),
-                "objective": problem.objective_value(
-                    decoded.repaired_decision
-                ),
+                "objective": problem.objective_value(decoded.repaired_decision),
                 "repair_steps": decoded.repair_steps,
                 "inference_seconds": inference_seconds,
                 "checkpoint_metadata": metadata,
@@ -377,18 +370,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
 
         config = ResearchConfig(
-            pretrain_instances_per_family=(
-                args.pretrain_instances_per_family
-            ),
+            pretrain_instances_per_family=(args.pretrain_instances_per_family),
             train_instances_per_family=args.train_instances_per_family,
-            validation_instances_per_family=(
-                args.validation_instances_per_family
-            ),
+            validation_instances_per_family=(args.validation_instances_per_family),
             test_instances_per_family=args.test_instances_per_family,
             transfer_pool_instances=args.transfer_pool_instances,
-            transfer_validation_instances=(
-                args.transfer_validation_instances
-            ),
+            transfer_validation_instances=(args.transfer_validation_instances),
             transfer_test_instances=args.transfer_test_instances,
             min_variables=args.min_variables,
             max_variables=args.max_variables,
@@ -422,11 +409,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 0
     except (OSError, ValueError, RuntimeError, KeyError) as exc:
-        print(
-            json.dumps(
-                {"error": type(exc).__name__, "message": str(exc)}
-            )
-        )
+        print(json.dumps({"error": type(exc).__name__, "message": str(exc)}))
         return 1
 
 
