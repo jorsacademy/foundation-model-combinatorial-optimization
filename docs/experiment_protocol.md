@@ -1,94 +1,98 @@
 # Experiment Protocol
 
-## Primary hypothesis
+## Objective
 
-A shared encoder pretrained on three binary combinatorial families may reduce the exact-label requirement when adapting to held-out set packing.
+Measure whether a shared representation improves adaptation to a held-out combinatorial family without conflating transfer with architecture size, data leakage, or feasibility post-processing.
 
-The hypothesis is evaluated rather than assumed.
+## Fixed task split
 
-## Data partitions
-
-All partitions use disjoint deterministic seed ranges:
-
-- semantics-preserving self-supervised pre-training problems;
-- seen-family supervised training;
-- seen-family validation;
-- seen-family in-distribution test;
-- seen-family size shift;
-- seen-family structural shift;
-- held-out set-packing shot pool;
-- held-out validation;
-- held-out test.
-
-No record is split into node-level train and validation samples. Every optimization instance remains atomic.
-
-## Seen families
+Pre-training and seen-task adaptation:
 
 - knapsack;
 - maximum-weight independent set;
 - set cover.
 
-## Held-out family
+Held-out transfer:
 
-Set packing is excluded from the default self-supervised and seen-family supervised stages. Its adapter exists structurally but receives no task-specific optimization labels before transfer.
+- set packing.
 
-## Transfer controls
+Set packing is not included in the default self-supervised pre-training corpus. This is stricter than a setting where unlabelled target-family instances are available during pre-training.
 
-At each shot budget:
+## Seed isolation
 
-1. `scratch`: train the whole architecture from random initialization;
-2. `pretrained_frozen`: train only the held-out adapter and task embedding;
-3. `pretrained_finetune`: fine-tune the complete pretrained model.
+The frozen research function assigns disjoint seed ranges to:
 
-The same shot and validation records are reused across methods.
+- self-supervised pre-training problems;
+- seen-task training corpus;
+- seen-task validation corpus;
+- seen-task test corpus;
+- size-shift corpus;
+- structure-shift corpus;
+- transfer training pool;
+- transfer validation corpus;
+- transfer test corpus.
 
-## Shift regimes
+No problem name may repeat inside a corpus. Corpus fingerprints record stable mathematical content.
 
-Knapsack:
+## Training stages
 
-- nominal correlated values;
-- uncorrelated values;
-- tight capacity.
+### Self-supervised stage
 
-Independent set:
+Train the shared encoder on equivalent graph views with masked reconstruction and instance contrast.
 
-- nominal graph density;
-- sparse graphs;
-- dense graphs.
+### Multi-task stage
 
-Set cover and set packing:
+Train seen-family adapters and the encoder jointly using exact binary solutions. Validation early stopping restores the best state.
 
-- nominal incidence;
-- sparse incidence;
-- dense incidence.
+### Transfer stage
 
-The size shift uses variable counts strictly above the training range.
+For every shot count, take the same prefix of the fixed transfer pool and train:
 
-## Metrics
+1. a random-initialized scratch model;
+2. a model trained on seen tasks without self-supervised pre-training;
+3. a self-supervised and multi-task model with frozen encoder;
+4. a self-supervised and multi-task model with full fine-tuning.
 
-Metrics are reported per family and method. No weighted composite score is used.
+All methods use the same held-out validation and test corpora.
 
-Primary:
+## Shift evaluation
 
-- feasibility rate;
-- mean and maximum exact objective gap;
-- exact-optimum rate.
+Seen tasks are evaluated on:
 
-Secondary:
+- in-distribution sizes and structures;
+- larger variable counts;
+- altered capacity/value relationships;
+- dense and sparse graph structures;
+- dense and sparse incidence structures.
 
+The transfer test corpus cycles through in-distribution, dense-incidence, and sparse-incidence set-packing regimes.
+
+## Primary outcomes
+
+Transfer evidence should be read from:
+
+- repaired objective gap;
+- exact-decision rate;
 - bit accuracy;
-- inference and decode time;
-- repair effort;
-- loss history;
-- corpus fingerprints.
+- performance as a function of shot count;
+- scratch versus multi-task-only versus frozen versus full fine-tuning;
+- worst-case shifted-family performance.
 
-## Statistical limitations
+Raw classification accuracy is secondary because equivalent or near-equivalent optimal solutions can differ in binary labels.
 
-The default corpus sizes are suitable for a reproducible research demonstration, not a definitive empirical claim. Strong conclusions require:
+## Statistical reporting
 
-- more random seeds;
-- larger test corpora;
-- confidence intervals over complete training runs;
-- established public datasets;
-- solver-independent replication;
-- controlled model-capacity scaling.
+The benchmark reports per-instance rows, arithmetic means, maxima, and 95% normal-approximation runtime half-widths. The default synthetic sample sizes are intentionally modest and should not be interpreted as publication-grade power analysis.
+
+Repeated runs across several top-level seeds are required before making comparative claims.
+
+## Negative results
+
+The protocol is valid when:
+
+- scratch training outperforms transfer;
+- frozen adapters fail on the held-out family;
+- repaired heuristics outperform the neural model;
+- inference overhead exceeds exact solve time on small instances.
+
+These outcomes should remain in the report rather than being filtered out.
