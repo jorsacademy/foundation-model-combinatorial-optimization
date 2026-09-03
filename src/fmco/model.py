@@ -34,13 +34,16 @@ class ModelConfig:
     dropout: float = 0.0
 
     def __post_init__(self) -> None:
-        if min(
-            self.hidden_dim,
-            self.task_dim,
-            self.adapter_dim,
-            self.projection_dim,
-            self.rounds,
-        ) <= 0:
+        if (
+            min(
+                self.hidden_dim,
+                self.task_dim,
+                self.adapter_dim,
+                self.projection_dim,
+                self.rounds,
+            )
+            <= 0
+        ):
             raise ValueError("all model dimensions and rounds must be positive")
         if not 0.0 <= self.dropout < 1.0:
             raise ValueError("dropout must lie in [0, 1)")
@@ -53,7 +56,11 @@ class EncoderOutput:
     graph_embedding: torch.Tensor
 
 
-def _mean_aggregate(messages: torch.Tensor, index: torch.Tensor, size: int) -> torch.Tensor:
+def _mean_aggregate(
+    messages: torch.Tensor,
+    index: torch.Tensor,
+    size: int,
+) -> torch.Tensor:
     output = torch.zeros(
         (size, messages.shape[1]),
         dtype=messages.dtype,
@@ -115,11 +122,12 @@ class BipartiteMessageLayer(nn.Module):
         )
         constraint_task = task_context.expand(constraint_embeddings.shape[0], -1)
         constraint_delta = self.constraint_update(
-            torch.cat([constraint_embeddings, constraint_aggregate, constraint_task], dim=1)
+            torch.cat(
+                [constraint_embeddings, constraint_aggregate, constraint_task],
+                dim=1,
+            )
         )
-        constraint_embeddings = self.constraint_norm(
-            constraint_embeddings + constraint_delta
-        )
+        constraint_embeddings = self.constraint_norm(constraint_embeddings + constraint_delta)
 
         constraint_messages = self.constraint_to_variable(
             torch.cat(
@@ -134,7 +142,10 @@ class BipartiteMessageLayer(nn.Module):
         )
         variable_task = task_context.expand(variable_embeddings.shape[0], -1)
         variable_delta = self.variable_update(
-            torch.cat([variable_embeddings, variable_aggregate, variable_task], dim=1)
+            torch.cat(
+                [variable_embeddings, variable_aggregate, variable_task],
+                dim=1,
+            )
         )
         variable_embeddings = self.variable_norm(variable_embeddings + variable_delta)
         return variable_embeddings, constraint_embeddings
@@ -156,7 +167,8 @@ class AdapterHead(nn.Module):
         task_embedding: torch.Tensor,
     ) -> torch.Tensor:
         task = task_embedding.expand(variable_embeddings.shape[0], -1)
-        return self.network(torch.cat([variable_embeddings, task], dim=1)).squeeze(-1)
+        combined = torch.cat([variable_embeddings, task], dim=1)
+        return self.network(combined).squeeze(-1)
 
 
 class FoundationCOModel(nn.Module):
@@ -224,7 +236,11 @@ class FoundationCOModel(nn.Module):
         nn.init.normal_(self.variable_mask_token, std=0.02)
         nn.init.normal_(self.constraint_mask_token, std=0.02)
 
-    def task_embedding(self, task: str, device: torch.device) -> torch.Tensor:
+    def task_embedding(
+        self,
+        task: str,
+        device: torch.device,
+    ) -> torch.Tensor:
         try:
             index = self.task_to_index[task]
         except KeyError as exc:
@@ -252,7 +268,9 @@ class FoundationCOModel(nn.Module):
             if variable_mask.shape != (graph.variable_count,):
                 raise ValueError("variable_mask has the wrong shape")
             variable_embeddings = variable_embeddings.clone()
-            variable_embeddings[variable_mask] = self.variable_mask_token + task_context.squeeze(0)
+            variable_embeddings[variable_mask] = (
+                self.variable_mask_token + task_context.squeeze(0)
+            )
         if constraint_mask is not None:
             if constraint_mask.shape != (graph.constraint_count,):
                 raise ValueError("constraint_mask has the wrong shape")
@@ -271,7 +289,10 @@ class FoundationCOModel(nn.Module):
                 task_context,
             )
         pooled = torch.cat(
-            [variable_embeddings.mean(dim=0), constraint_embeddings.mean(dim=0)],
+            [
+                variable_embeddings.mean(dim=0),
+                constraint_embeddings.mean(dim=0),
+            ],
             dim=0,
         )
         graph_embedding = self.projection(pooled)
@@ -281,10 +302,20 @@ class FoundationCOModel(nn.Module):
             graph_embedding=graph_embedding,
         )
 
-    def decision_logits(self, graph: BipartiteGraph, task: str) -> torch.Tensor:
+    def decision_logits(
+        self,
+        graph: BipartiteGraph,
+        task: str,
+    ) -> torch.Tensor:
         output = self.encode(graph, task)
-        task_embedding = self.task_embedding(task, graph.variable_features.device)
-        return self.adapters[task](output.variable_embeddings, task_embedding)
+        task_embedding = self.task_embedding(
+            task,
+            graph.variable_features.device,
+        )
+        return self.adapters[task](
+            output.variable_embeddings,
+            task_embedding,
+        )
 
     def reconstruct(
         self,
@@ -326,7 +357,10 @@ def save_checkpoint(
         "tasks": json.dumps(model.tasks),
         "extra": json.dumps(metadata or {}, sort_keys=True),
     }
-    tensors = {key: value.detach().cpu().contiguous() for key, value in model.state_dict().items()}
+    tensors = {
+        key: value.detach().cpu().contiguous()
+        for key, value in model.state_dict().items()
+    }
     save_file(tensors, str(output), metadata=header)
 
 
