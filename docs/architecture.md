@@ -2,51 +2,64 @@
 
 ## Design objective
 
-The architecture is intentionally smaller than contemporary graph foundation models. Its purpose is to expose pre-training, task adaptation, and transfer assumptions in code that can be audited on CPU.
+The repository isolates representation transfer across binary combinatorial problems. The neural model is deliberately separated from the exact oracle, feasibility audit, and objective evaluation.
 
-## Unified graph
+## Data path
 
-A binary linear problem is represented as a heterogeneous bipartite graph with variable nodes, constraint nodes, and coefficient edges. Objective maximization is converted to an equivalent canonical minimization coefficient only for input normalization and exact solving; reported objectives remain in the original sense.
-
-Each constraint row is divided by
-
-\[
-\max\left(\max_i |a_i|, |b|, 10^{-12}\right),
-\]
-
-so multiplying a row and its right-hand side by a positive scalar does not change its features.
+```text
+BinaryLinearProblem
+      │
+      ├── exact MILP oracle ──► training label / benchmark reference
+      │
+      ▼
+row-normalized variable–constraint graph
+      │
+      ▼
+shared bipartite message-passing encoder
+      │
+      ├── masked node reconstruction head
+      ├── graph-level contrastive projection head
+      └── task-conditioned decision adapter
+                         │
+                         ▼
+                    variable logits
+                         │
+                         ├── raw threshold decision
+                         └── family-aware repair
+                                      │
+                                      ▼
+                         independent feasibility audit
+                                      │
+                                      ▼
+                         exact objective-gap evaluation
+```
 
 ## Shared encoder
 
-The encoder applies an input projection to both node types and adds a projected task embedding. Each message-passing round performs:
+Variable and constraint nodes receive independent input projections. A learned task embedding is projected into the hidden space and added to both node types. Each message-passing round performs:
 
-1. variable-to-constraint edge-conditioned messages;
-2. degree-normalized aggregation;
-3. residual constraint update and layer normalization;
-4. constraint-to-variable edge-conditioned messages;
-5. degree-normalized aggregation;
-6. residual variable update and layer normalization.
+1. variable-to-constraint messages conditioned on edge coefficients;
+2. deterministic mean aggregation;
+3. residual constraint update with layer normalization;
+4. constraint-to-variable messages;
+5. deterministic mean aggregation;
+6. residual variable update with layer normalization.
 
-The same message parameters are shared across all families. Only the final adapter heads are task-specific.
-
-## Pre-training heads
-
-The masked-feature heads reconstruct variable and constraint feature vectors. The graph projection head maps the pooled variable and constraint representation into a contrastive embedding space.
-
-These heads are retained in checkpoints so a checkpoint can be further pre-trained without architecture surgery.
+Graph pooling concatenates mean variable and mean constraint embeddings. The pooled representation feeds the contrastive projection head.
 
 ## Task adapters
 
-Each task adapter is a small layer-normalized bottleneck MLP applied to every variable embedding together with the task embedding. It returns a binary inclusion logit.
+Every registered family has a small adapter that combines each variable embedding with the task embedding and returns one binary-selection logit. The shared encoder contains most parameters; adapters isolate family-specific output semantics.
 
-During frozen transfer, the shared encoder and all unrelated adapters are fixed. Only the held-out adapter and task-embedding table receive gradients; unused task rows have zero gradient.
+For a held-out task, the experiment compares:
 
-## Complexity
+- training the complete architecture from scratch;
+- seen-task multi-task training without self-supervised pre-training;
+- freezing the self-supervised shared encoder and learning only the task embedding/adapter;
+- fine-tuning the complete self-supervised and multi-task model.
 
-For hidden width \(h\), edge count \(|E|\), node count \(|V|+|C|\), and \(L\) rounds, message passing is linear in graph size up to dense linear-layer costs:
+## Determinism
 
-\[
-O\left(L(|E|h^2+(|V|+|C|)h^2)\right).
-\]
+The implementation uses CPU execution, explicit NumPy/PyTorch seeds, one PyTorch thread, deterministic algorithms where available, stable sorting, deterministic tie breaks, and versioned data/checkpoint schemas.
 
-The current dense Python representation and per-instance training loop are not optimized for industrial sparse batches.
+Determinism does not make floating-point runtimes identical across machines. Runtime is excluded from corpus fingerprints.
