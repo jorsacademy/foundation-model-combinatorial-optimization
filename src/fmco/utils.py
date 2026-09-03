@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import random
@@ -19,12 +20,8 @@ def set_global_seed(seed: int) -> None:
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.set_num_threads(1)
-    try:
+    with contextlib.suppress(RuntimeError):
         torch.use_deterministic_algorithms(True)
-    except RuntimeError:
-        # Some third-party builds may not expose every deterministic kernel. The
-        # repository uses CPU operations covered by deterministic implementations.
-        pass
 
 
 def shuffled_batches(
@@ -41,5 +38,10 @@ def shuffled_batches(
 
 
 def stable_fingerprint(payload: object) -> str:
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    encoded = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
