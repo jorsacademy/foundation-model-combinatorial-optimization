@@ -62,9 +62,7 @@ def _bit_accuracy(
     decision: tuple[int, ...],
     exact: tuple[int, ...],
 ) -> float:
-    return float(
-        np.mean(np.asarray(decision, dtype=int) == np.asarray(exact, dtype=int))
-    )
+    return float(np.mean(np.asarray(decision, dtype=int) == np.asarray(exact, dtype=int)))
 
 
 def _row(
@@ -79,11 +77,7 @@ def _row(
 ) -> BenchmarkRow:
     audit = problem.audit(decision)
     objective = problem.objective_value(decision)
-    gap = (
-        relative_objective_gap(problem, objective, exact.objective)
-        if audit.feasible
-        else None
-    )
+    gap = relative_objective_gap(problem, objective, exact.objective) if audit.feasible else None
     return BenchmarkRow(
         instance=problem.name,
         family=problem.family,
@@ -117,11 +111,7 @@ def _summarize(
     keys = {f"{row.method}|{row.family}" for row in rows}
     for key in sorted(keys):
         method, family = key.split("|", maxsplit=1)
-        selected = [
-            row
-            for row in rows
-            if row.method == method and row.family == family
-        ]
+        selected = [row for row in rows if row.method == method and row.family == family]
         feasible_gaps = [
             float(row.objective_gap_percent)
             for row in selected
@@ -130,19 +120,13 @@ def _summarize(
         times = [row.total_seconds for row in selected]
         summary[key] = {
             "instances": float(len(selected)),
-            "feasibility_rate": statistics.fmean(
-                float(row.feasible) for row in selected
-            ),
-            "mean_gap_percent": (
-                statistics.fmean(feasible_gaps) if feasible_gaps else None
-            ),
+            "feasibility_rate": statistics.fmean(float(row.feasible) for row in selected),
+            "mean_gap_percent": (statistics.fmean(feasible_gaps) if feasible_gaps else None),
             "max_gap_percent": max(feasible_gaps) if feasible_gaps else None,
             "exact_decision_rate": statistics.fmean(
                 float(row.exact_decision_match) for row in selected
             ),
-            "mean_bit_accuracy": statistics.fmean(
-                row.bit_accuracy for row in selected
-            ),
+            "mean_bit_accuracy": statistics.fmean(row.bit_accuracy for row in selected),
             "mean_total_seconds": statistics.fmean(times),
             "total_seconds_ci95_half_width": _confidence_half_width(times),
         }
@@ -157,8 +141,7 @@ def _current_exact(
     scale = max(1.0, abs(record.solution.objective))
     if abs(exact.objective - record.solution.objective) > 1e-7 * scale:
         raise RuntimeError(
-            "stored and current exact objectives disagree for "
-            f"{record.problem.name}"
+            f"stored and current exact objectives disagree for {record.problem.name}"
         )
     return exact
 
@@ -187,9 +170,7 @@ def evaluate_model(
         with torch.no_grad():
             logits_tensor = model.decision_logits(graph, problem.family)
         if not torch.all(torch.isfinite(logits_tensor)):
-            raise RuntimeError(
-                f"model produced non-finite logits for {problem.name}"
-            )
+            raise RuntimeError(f"model produced non-finite logits for {problem.name}")
         inference_seconds = time.perf_counter() - started
         logits = logits_tensor.detach().cpu().numpy().astype(float)
 
