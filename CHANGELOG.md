@@ -1,22 +1,20 @@
 # Changelog
 
-All notable changes to this research software are documented here.
+All notable changes to this research implementation are documented here.
 
-## 0.1.0 - 2026-09-04
+## 0.1.0 — 2026-09-04
 
 ### Added
 
-- Typed binary linear optimization representation shared across four problem families.
-- Deterministic generators for knapsack, maximum-weight independent set, set cover, and set packing.
-- Exact SciPy/HiGHS MILP oracle with deterministic optimum tie breaking and independent audits.
-- Scale-invariant variable-constraint bipartite graph featurization.
-- Shared graph encoder with task embeddings and lightweight decision adapters.
-- Masked node-feature reconstruction and instance-level contrastive pretraining.
-- Multi-task supervised adaptation and held-out few-shot transfer protocols.
-- Task-aware feasibility repair, raw-output diagnostics, and solver-grounded benchmarking.
-- Structural-shift, size-shift, and held-out-task evaluation.
-- Safe Safetensors checkpoints, CLI workflows, tests, CI, documentation, and noncommercial licensing.
-
-### Methodological scope
-
-This release is a compact pretrain-transfer benchmark. It does not claim frontier-scale pretraining, universal combinatorial optimization, or state-of-the-art performance.
+- typed binary-linear optimization schema and deterministic audits;
+- exact SciPy/HiGHS MILP labels with primary-objective verification;
+- four synthetic combinatorial problem families;
+- positive-row-scale-invariant variable–constraint graph features;
+- shared task-conditioned bipartite message-passing encoder;
+- masked node reconstruction and graph-level contrastive pre-training;
+- exact-label multi-task adaptation;
+- scratch, multi-task-without-SSL, frozen-adapter, and full-fine-tuning held-out transfer controls;
+- family-specific feasibility repair and objective/structure heuristic controls;
+- solver-grounded benchmark metrics and distribution-shift protocol;
+- safe `safetensors` checkpoints and stable corpus fingerprints;
+- CLI, tests, documentation, Python 3.11/3.12 CI, and noncommercial licensing.
