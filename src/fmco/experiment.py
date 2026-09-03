@@ -68,18 +68,14 @@ class ResearchConfig:
             self.rounds,
         )
         if any(value <= 0 for value in counts):
-            raise ValueError(
-                "all research counts and dimensions must be positive"
-            )
+            raise ValueError("all research counts and dimensions must be positive")
         if self.min_variables < 3 or self.max_variables < self.min_variables:
             raise ValueError("invalid in-distribution size range")
         if self.size_shift_min_variables <= self.max_variables:
             raise ValueError("size shift must be larger than the training range")
         if self.size_shift_max_variables < self.size_shift_min_variables:
             raise ValueError("invalid size-shift range")
-        if not self.transfer_shots or any(
-            shot <= 0 for shot in self.transfer_shots
-        ):
+        if not self.transfer_shots or any(shot <= 0 for shot in self.transfer_shots):
             raise ValueError("transfer_shots must contain positive values")
         if max(self.transfer_shots) > self.transfer_pool_instances:
             raise ValueError("largest transfer shot exceeds the transfer pool")
@@ -134,9 +130,7 @@ class ResearchReport:
             "seen_benchmark": self.seen_benchmark.to_dict(),
             "multitask_only_seen_benchmark": self.multitask_only_seen_benchmark.to_dict(),
             "size_shift_benchmark": self.size_shift_benchmark.to_dict(),
-            "structure_shift_benchmark": (
-                self.structure_shift_benchmark.to_dict()
-            ),
+            "structure_shift_benchmark": (self.structure_shift_benchmark.to_dict()),
             "transfer_runs": [run.to_dict() for run in self.transfer_runs],
             "corpus_fingerprints": self.corpus_fingerprints,
             "methodological_scope": self.methodological_scope,
@@ -226,9 +220,7 @@ def run_research_experiment(
         shifted=True,
     )
 
-    model = FoundationCOModel(
-        ModelConfig(hidden_dim=config.hidden_dim, rounds=config.rounds)
-    )
+    model = FoundationCOModel(ModelConfig(hidden_dim=config.hidden_dim, rounds=config.rounds))
     pretraining = pretrain_encoder(
         model,
         pretrain_problems,
