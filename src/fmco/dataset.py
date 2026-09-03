@@ -1,12 +1,13 @@
-"""Versioned exact-oracle corpora for pre-training and transfer experiments."""
+"""Versioned exact-oracle corpora for pretraining and transfer experiments."""
 
 from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, cast
+from typing import cast
 
 import numpy as np
 
@@ -23,7 +24,10 @@ class LabeledProblem:
     solution: ExactSolution
 
     def to_dict(self) -> dict[str, object]:
-        return {"problem": self.problem.to_dict(), "solution": self.solution.to_dict()}
+        return {
+            "problem": self.problem.to_dict(),
+            "solution": self.solution.to_dict(),
+        }
 
     @classmethod
     def from_dict(cls, payload: dict[str, object]) -> LabeledProblem:
@@ -33,9 +37,16 @@ class LabeledProblem:
         solution = ExactSolution.from_dict(solution_payload)
         audit = problem.audit(solution.decision)
         if not audit.feasible:
-            raise ValueError(f"stored exact decision for {problem.name} is infeasible")
-        if abs(problem.objective_value(solution.decision) - solution.objective) > 1e-7:
-            raise ValueError(f"stored objective for {problem.name} is inconsistent")
+            raise ValueError(
+                f"stored exact decision for {problem.name} is infeasible"
+            )
+        if (
+            abs(problem.objective_value(solution.decision) - solution.objective)
+            > 1e-7
+        ):
+            raise ValueError(
+                f"stored objective for {problem.name} is inconsistent"
+            )
         return cls(problem=problem, solution=solution)
 
 
@@ -54,12 +65,27 @@ class ProblemCorpus:
 
     @property
     def families(self) -> tuple[str, ...]:
-        return tuple(sorted({record.problem.family for record in self.records}))
+        return tuple(
+            sorted({record.problem.family for record in self.records})
+        )
 
     @property
     def fingerprint(self) -> str:
+        """Hash only stable mathematical content, never runtime diagnostics."""
+
+        stable_records = [
+            {
+                "problem": record.problem.to_dict(),
+                "solution": {
+                    "decision": list(record.solution.decision),
+                    "objective": record.solution.objective,
+                    "canonical_objective": record.solution.canonical_objective,
+                },
+            }
+            for record in self.records
+        ]
         canonical = json.dumps(
-            [record.to_dict() for record in self.records],
+            stable_records,
             sort_keys=True,
             separators=(",", ":"),
             ensure_ascii=False,
@@ -67,8 +93,12 @@ class ProblemCorpus:
         return hashlib.sha256(canonical).hexdigest()
 
 
-def label_problems(problems: Iterable[BinaryLinearProblem]) -> ProblemCorpus:
-    records = tuple(LabeledProblem(problem, solve_exact(problem)) for problem in problems)
+def label_problems(
+    problems: Iterable[BinaryLinearProblem],
+) -> ProblemCorpus:
+    records = tuple(
+        LabeledProblem(problem, solve_exact(problem)) for problem in problems
+    )
     return ProblemCorpus(
         records=records,
         metadata={"generator": "fmco", "oracle": "scipy-highs-milp"},
@@ -88,7 +118,10 @@ def collect_corpus(
         raise ValueError("families must be nonempty and unique")
     all_problems: list[BinaryLinearProblem] = []
     for family_index, family in enumerate(families):
-        family_regimes = (regimes or {}).get(family, ("in_distribution",))
+        family_regimes = (regimes or {}).get(
+            family,
+            ("in_distribution",),
+        )
         all_problems.extend(
             generate_problems(
                 family,
@@ -109,7 +142,9 @@ def collect_corpus(
             "min_variables": min_variables,
             "max_variables": max_variables,
             "seed": seed,
-            "regimes": {key: list(value) for key, value in (regimes or {}).items()},
+            "regimes": {
+                key: list(value) for key, value in (regimes or {}).items()
+            },
         },
     )
 
@@ -125,7 +160,9 @@ def save_corpus(corpus: ProblemCorpus, path: str | Path) -> None:
         "metadata": corpus.metadata,
     }
     with output.open("w", encoding="utf-8", newline="\n") as handle:
-        handle.write(json.dumps(manifest, sort_keys=True, ensure_ascii=False) + "\n")
+        handle.write(
+            json.dumps(manifest, sort_keys=True, ensure_ascii=False) + "\n"
+        )
         for record in corpus.records:
             handle.write(
                 json.dumps(
@@ -151,7 +188,9 @@ def load_corpus(path: str | Path) -> ProblemCorpus:
         payload = json.loads(line)
         if not isinstance(payload, dict) or payload.get("type") != "record":
             raise ValueError(f"line {line_number} is not a corpus record")
-        records.append(LabeledProblem.from_dict(cast(dict[str, object], payload)))
+        records.append(
+            LabeledProblem.from_dict(cast(dict[str, object], payload))
+        )
     corpus = ProblemCorpus(
         records=tuple(records),
         metadata=cast(dict[str, object], manifest.get("metadata", {})),
@@ -175,10 +214,22 @@ def split_records(
         raise ValueError("at least two records are required for a split")
     rng = np.random.default_rng(seed)
     order = rng.permutation(len(records))
-    validation_count = max(1, min(len(records) - 1, int(round(validation_fraction * len(records)))))
-    validation_indices = set(int(index) for index in order[:validation_count])
-    train = tuple(record for index, record in enumerate(records) if index not in validation_indices)
+    validation_count = max(
+        1,
+        min(
+            len(records) - 1,
+            round(validation_fraction * len(records)),
+        ),
+    )
+    validation_indices = {int(index) for index in order[:validation_count]}
+    train = tuple(
+        record
+        for index, record in enumerate(records)
+        if index not in validation_indices
+    )
     validation = tuple(
-        record for index, record in enumerate(records) if index in validation_indices
+        record
+        for index, record in enumerate(records)
+        if index in validation_indices
     )
     return train, validation
