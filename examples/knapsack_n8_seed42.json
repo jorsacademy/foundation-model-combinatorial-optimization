@@ -1,0 +1,47 @@
+{
+  "constraints": [
+    {
+      "coefficients": [
+        3.0,
+        16.0,
+        14.0,
+        10.0,
+        10.0,
+        18.0,
+        3.0,
+        15.0
+      ],
+      "name": "capacity",
+      "rhs": 46.0,
+      "sense": "le"
+    }
+  ],
+  "family": "knapsack",
+  "metadata": {
+    "capacity": 46.0,
+    "weights": [
+      3.0,
+      16.0,
+      14.0,
+      10.0,
+      10.0,
+      18.0,
+      3.0,
+      15.0
+    ]
+  },
+  "name": "knapsack-n8-in_distribution-seed42",
+  "objective": [
+    1.0,
+    20.0,
+    23.0,
+    15.0,
+    16.0,
+    25.0,
+    8.0,
+    27.0
+  ],
+  "objective_sense": "max",
+  "regime": "in_distribution",
+  "schema_version": "1.0"
+}

@@ -1,0 +1,113 @@
+{
+  "constraints": [
+    {
+      "coefficients": [
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "name": "packing_0",
+      "rhs": 1.0,
+      "sense": "le"
+    },
+    {
+      "coefficients": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0
+      ],
+      "name": "packing_1",
+      "rhs": 1.0,
+      "sense": "le"
+    },
+    {
+      "coefficients": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "name": "packing_2",
+      "rhs": 1.0,
+      "sense": "le"
+    },
+    {
+      "coefficients": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "name": "packing_3",
+      "rhs": 1.0,
+      "sense": "le"
+    },
+    {
+      "coefficients": [
+        0.0,
+        0.0,
+        1.0,
+        1.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ],
+      "name": "packing_4",
+      "rhs": 1.0,
+      "sense": "le"
+    },
+    {
+      "coefficients": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0
+      ],
+      "name": "packing_5",
+      "rhs": 1.0,
+      "sense": "le"
+    }
+  ],
+  "family": "set_packing",
+  "metadata": {
+    "element_count": 6,
+    "incidence_density": 0.2928747258267156
+  },
+  "name": "set-packing-n8-m6-in_distribution-seed42",
+  "objective": [
+    18.0,
+    12.0,
+    17.0,
+    22.0,
+    8.0,
+    11.0,
+    15.0,
+    10.0
+  ],
+  "objective_sense": "max",
+  "regime": "in_distribution",
+  "schema_version": "1.0"
+}
