@@ -1,4 +1,4 @@
-"""Scale-invariant bipartite MILP graph features."""
+"""Positive-row-scale-invariant bipartite MILP graph features."""
 
 from __future__ import annotations
 
@@ -74,18 +74,29 @@ class BipartiteGraph:
 
 
 def _ranks(values: np.ndarray) -> np.ndarray:
-    order = np.argsort(values, kind="stable")
-    ranks = np.empty_like(order, dtype=float)
+    """Return permutation-invariant average ranks, normalized to [0, 1]."""
+
     if len(values) == 1:
-        ranks[0] = 0.0
-        return ranks
-    ranks[order] = np.linspace(0.0, 1.0, len(values), dtype=float)
+        return np.zeros(1, dtype=float)
+    order = np.argsort(values, kind="stable")
+    ranks = np.empty(len(values), dtype=float)
+    start = 0
+    while start < len(values):
+        end = start + 1
+        while end < len(values) and values[order[end]] == values[order[start]]:
+            end += 1
+        average_rank = 0.5 * (start + end - 1) / (len(values) - 1)
+        ranks[order[start:end]] = average_rank
+        start = end
     return ranks
 
 
-def _normalized_rows(problem: BinaryLinearProblem) -> tuple[np.ndarray, np.ndarray]:
+def _normalized_rows(
+    problem: BinaryLinearProblem,
+) -> tuple[np.ndarray, np.ndarray]:
     matrix = np.asarray(
-        [constraint.coefficients for constraint in problem.constraints], dtype=float
+        [constraint.coefficients for constraint in problem.constraints],
+        dtype=float,
     )
     rhs = np.asarray([constraint.rhs for constraint in problem.constraints], dtype=float)
     row_scale = np.maximum(
@@ -96,7 +107,7 @@ def _normalized_rows(problem: BinaryLinearProblem) -> tuple[np.ndarray, np.ndarr
 
 
 def featurize(problem: BinaryLinearProblem) -> BipartiteGraph:
-    """Convert a BLP to a positive-row-scale-invariant bipartite graph."""
+    """Convert a BLP to a row-scale-invariant bipartite graph."""
 
     matrix, rhs = _normalized_rows(problem)
     n = problem.variable_count
@@ -134,16 +145,28 @@ def featurize(problem: BinaryLinearProblem) -> BipartiteGraph:
     mean_abs = np.sum(row_abs, axis=1) / row_count
     max_abs = np.max(row_abs, axis=1)
     sense_le = np.asarray(
-        [constraint.sense == "le" for constraint in problem.constraints], dtype=float
+        [constraint.sense == "le" for constraint in problem.constraints],
+        dtype=float,
     )
     sense_ge = np.asarray(
-        [constraint.sense == "ge" for constraint in problem.constraints], dtype=float
+        [constraint.sense == "ge" for constraint in problem.constraints],
+        dtype=float,
     )
     sense_eq = np.asarray(
-        [constraint.sense == "eq" for constraint in problem.constraints], dtype=float
+        [constraint.sense == "eq" for constraint in problem.constraints],
+        dtype=float,
     )
     constraint_features = np.stack(
-        [rhs, row_degree, sense_le, sense_ge, sense_eq, mean_abs, max_abs, np.ones(m)],
+        [
+            rhs,
+            row_degree,
+            sense_le,
+            sense_ge,
+            sense_eq,
+            mean_abs,
+            max_abs,
+            np.ones(m),
+        ],
         axis=1,
     )
 
@@ -155,7 +178,10 @@ def featurize(problem: BinaryLinearProblem) -> BipartiteGraph:
     )
     return BipartiteGraph(
         variable_features=torch.as_tensor(variable_features, dtype=torch.float32),
-        constraint_features=torch.as_tensor(constraint_features, dtype=torch.float32),
+        constraint_features=torch.as_tensor(
+            constraint_features,
+            dtype=torch.float32,
+        ),
         edge_constraint_index=torch.as_tensor(constraint_index, dtype=torch.long),
         edge_variable_index=torch.as_tensor(variable_index, dtype=torch.long),
         edge_features=torch.as_tensor(edge_features, dtype=torch.float32),
