@@ -1,35 +1,38 @@
 # Research Context
 
-## From task-specific neural heuristics to shared optimization representations
+## Variable–constraint graph representations
 
-Early ML-for-MILP work showed that variable–constraint bipartite graphs support useful generalization within a problem class. More recent generalist and foundation-model work asks whether representations can transfer across tasks, structures, and distributions.
+Gasse et al. (NeurIPS 2019) demonstrated that a mixed-integer program can be represented naturally as a variable–constraint bipartite graph for learning solver decisions. This repository uses the same broad representation principle, but it predicts complete small binary assignments rather than branch-and-bound variables.
 
-## Relevant design patterns
+## Generalist combinatorial optimization models
 
-### Unified problem representation
+GOAL (ICLR 2025) studies a shared backbone with lightweight problem-specific adapters across routing, scheduling, and graph problems, including transfer to new tasks. The present project adopts the shared-backbone/adapter experimental question while using a much smaller bipartite message-passing model and exact supervised labels.
 
-GOAL uses a shared backbone plus problem-specific adapters across several combinatorial families. This repository uses a narrower binary-linear representation but preserves the backbone/adapter separation.
+## Routing foundation models
 
-### Variant-level foundation models
+RouteFinder introduced a unified representation and adapter-based transfer across many vehicle-routing variants. This repository does not model routing attributes or use reinforcement learning; it transfers across four binary-linear problem families instead.
 
-RouteFinder treats vehicle-routing variants as attribute subsets of a larger generalized problem and uses efficient adapters for novel variants. The present benchmark instead focuses on transfer across distinct binary-linear families.
+## Hierarchical graph pre-training
 
-### Hierarchical pre-training
+OPTFM (NeurIPS 2025) combines node-level reconstruction and instance-level contrastive learning in a graph foundation model for general combinatorial optimization. The pre-training objectives here intentionally reflect those two levels, but the architecture is not an OPTFM reproduction and makes no claim to its scale or performance.
 
-OPTFM combines node-level reconstruction with instance-level contrastive learning. The present implementation adopts these two objective classes in a much smaller message-passing encoder.
+## Why a small benchmark remains useful
 
-### Solver-grounded benchmarking
+A compact implementation makes several methodological details directly inspectable:
 
-ML4CO-Bench-101 argues for transparent evaluation that separates the learning component from pre/post-processing. This repository therefore reports raw threshold output, repaired output, objective-only repair controls, and exact MILP results separately.
+- whether target-family data entered pre-training;
+- whether equivalent graph views preserve the optimization model;
+- whether train and test instances overlap;
+- whether checkpoint loading executes arbitrary Python objects;
+- whether candidate feasibility is recomputed;
+- whether objective gaps are based on exact references;
+- whether scratch and transfer models use identical capacity.
 
-## Differences from cited systems
+These controls are often more important for a portfolio research artifact than a large unverified training run.
 
-This project does not implement:
+## References
 
-- GOAL's mixed-attention or multi-type transformer;
-- RouteFinder's autoregressive routing environment;
-- OPTFM's scalable multi-view graph transformer;
-- reinforcement-learning solution construction;
-- large public benchmark corpora.
-
-Its contribution is engineering and methodological: a compact, typed, testable pretrain–transfer laboratory with exact small-instance verification.
+- Gasse, M., Chételat, D., Ferroni, N., Charlin, L., & Lodi, A. (2019). Exact Combinatorial Optimization with Graph Convolutional Neural Networks. NeurIPS 2019.
+- Drakulic, D., Michel, S., & Andreoli, J.-M. (2025). GOAL: A Generalist Combinatorial Optimization Agent Learner. ICLR 2025.
+- Berto, F., Hua, C., Zepeda, N. G., et al. (2024). RouteFinder: Towards Foundation Models for Vehicle Routing Problems. arXiv:2406.15007.
+- Yuan, H., Ouyang, W., Zhang, C., Li, C., & Sun, Y. (2025). OPTFM: A Scalable Multi-View Graph Transformer for Hierarchical Pre-Training in Combinatorial Optimization. NeurIPS 2025.
