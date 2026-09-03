@@ -1,0 +1,119 @@
+{
+  "constraints": [
+    {
+      "coefficients": [
+        1.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "name": "edge_0_3",
+      "rhs": 1.0,
+      "sense": "le"
+    },
+    {
+      "coefficients": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "name": "edge_0_7",
+      "rhs": 1.0,
+      "sense": "le"
+    },
+    {
+      "coefficients": [
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0
+      ],
+      "name": "edge_1_6",
+      "rhs": 1.0,
+      "sense": "le"
+    },
+    {
+      "coefficients": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0
+      ],
+      "name": "edge_4_5",
+      "rhs": 1.0,
+      "sense": "le"
+    },
+    {
+      "coefficients": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        1.0,
+        0.0
+      ],
+      "name": "edge_5_6",
+      "rhs": 1.0,
+      "sense": "le"
+    }
+  ],
+  "family": "independent_set",
+  "metadata": {
+    "edge_probability": 0.3083538467978349,
+    "edges": [
+      [
+        0,
+        3
+      ],
+      [
+        0,
+        7
+      ],
+      [
+        1,
+        6
+      ],
+      [
+        4,
+        5
+      ],
+      [
+        5,
+        6
+      ]
+    ]
+  },
+  "name": "independent-set-n8-in_distribution-seed42",
+  "objective": [
+    15.0,
+    14.0,
+    3.0,
+    14.0,
+    20.0,
+    8.0,
+    16.0,
+    1.0
+  ],
+  "objective_sense": "max",
+  "regime": "in_distribution",
+  "schema_version": "1.0"
+}

@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "If you use this software in academic work, cite the repository and the exact version or commit."
+title: "Foundation Model for Combinatorial Optimization"
+type: software
+authors:
+  - alias: jorsacademy
+version: 0.1.0
+date-released: 2026-09-04
+repository-code: "https://github.com/jorsacademy/foundation-model-combinatorial-optimization"
+license: PolyForm-Noncommercial-1.0.0
+keywords:
+  - operations research
+  - combinatorial optimization
+  - foundation models
+  - graph neural networks
+  - transfer learning

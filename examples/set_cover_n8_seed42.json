@@ -1,0 +1,98 @@
+{
+  "constraints": [
+    {
+      "coefficients": [
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "name": "cover_0",
+      "rhs": 1.0,
+      "sense": "ge"
+    },
+    {
+      "coefficients": [
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0
+      ],
+      "name": "cover_1",
+      "rhs": 1.0,
+      "sense": "ge"
+    },
+    {
+      "coefficients": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "name": "cover_2",
+      "rhs": 1.0,
+      "sense": "ge"
+    },
+    {
+      "coefficients": [
+        1.0,
+        0.0,
+        1.0,
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "name": "cover_3",
+      "rhs": 1.0,
+      "sense": "ge"
+    },
+    {
+      "coefficients": [
+        1.0,
+        0.0,
+        1.0,
+        1.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ],
+      "name": "cover_4",
+      "rhs": 1.0,
+      "sense": "ge"
+    }
+  ],
+  "family": "set_cover",
+  "metadata": {
+    "element_count": 5,
+    "incidence_density": 0.4083538467978349
+  },
+  "name": "set-cover-n8-m5-in_distribution-seed42",
+  "objective": [
+    15.0,
+    6.0,
+    11.0,
+    14.0,
+    8.0,
+    9.0,
+    8.0,
+    12.0
+  ],
+  "objective_sense": "min",
+  "regime": "in_distribution",
+  "schema_version": "1.0"
+}
