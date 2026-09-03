@@ -1,58 +1,80 @@
-# Exactness and Trust Boundary
+# Exactness, Verification, and Claim Boundary
 
-## Exact claims
+## Exact oracle obligations
 
-The following components are exact up to declared floating-point and HiGHS tolerances:
+For every reference instance, the oracle must:
 
-- feasibility auditing of an explicit binary decision;
-- the MILP reference solve on the declared finite binary model;
-- positive-row-scaling equivalence;
-- deterministic corpus hashing;
-- task-aware repair feasibility for the supported generated families.
+1. solve the canonical binary minimization model with HiGHS;
+2. obtain a successful solution and finite objective;
+3. optionally refine label choice inside the primary-optimality band;
+4. round the returned values to binary decisions;
+5. recompute variable bounds, integrality, and all row violations;
+6. recompute the unperturbed original objective;
+7. reject a rounded decision outside the primary-optimality band.
 
-## Exact MILP oracle
+The second solve is a deterministic label-stabilization device. It is not a replacement objective and is not claimed to provide a mathematically unique lexicographic optimum for every arbitrary floating-point model.
 
-The oracle solves the canonical minimization form with binary integrality and the original linear constraints. A second solve is permitted only inside a numerical band around the primary optimum and provides deterministic tie breaking.
+## Candidate obligations
 
-After solving, the decision is rounded at 0.5 and independently re-evaluated. The oracle rejects a decision if:
+A benchmark candidate is evaluated against the original problem, not against a surrogate loss.
 
-- it violates binary bounds;
-- it is non-integral after rounding logic;
-- it violates any original constraint;
-- its canonical objective differs materially from the primary optimum.
+For each decision, the code recomputes:
 
-## Neural non-claims
+- binary bound violation;
+- integrality violation;
+- every constraint-row violation;
+- original objective value;
+- objective-sense-aware exact gap.
 
-The neural network does not certify:
+An infeasible raw prediction receives no optimization gap. A repaired prediction must pass the audit or the experiment stops with an exception.
 
-- feasibility;
-- optimality;
-- an upper or lower bound;
-- transfer to an unseen distribution;
-- transfer to an unseen problem family.
+## Objective-gap sign
 
-The raw threshold output is diagnostic. The repaired output is feasible by construction for the four supported family decoders, but it has no theoretical objective-quality guarantee.
+For minimization:
 
-## Objective-gap audit
+\[
+\operatorname{gap}(x)=100\frac{f(x)-f(x^*)}{\max(1,|f(x^*)|)}.
+\]
 
-A candidate gap is computed only for a feasible candidate. If a candidate appears better than the exact optimum beyond tolerance, the benchmark raises an exception. This catches objective-sense errors, stale labels, and solver/model inconsistencies.
+For maximization:
 
-## Scope of row-scaling invariance
+\[
+\operatorname{gap}(x)=100\frac{f(x^*)-f(x)}{\max(1,|f(x^*)|)}.
+\]
 
-Only multiplication of a complete row and right-hand side by a strictly positive scalar is treated as an equivalent view. Negative scaling would reverse an inequality and is not sampled.
+If a feasible candidate appears better than the exact reference beyond tolerance, the result is treated as a correctness failure. It is not silently clipped to zero.
 
-## Multiple optima
+## Semantics-preserving views
 
-Bit accuracy and exact-decision match can be low even when a candidate is optimal. The primary metric is objective gap. The secondary deterministic objective makes oracle labels more stable but does not prove uniqueness of the original primary optimum.
+The self-supervised augmentation applies only transformations that preserve the feasible set and objective up to variable relabelling:
 
-## Failure policy
+- variable permutation;
+- constraint permutation;
+- multiplication of an entire row and right-hand side by a strictly positive scalar.
 
-The implementation fails closed on:
+Negative row scaling is not used because it would require changing the inequality sense.
 
-- non-finite model outputs;
-- incompatible feature/checkpoint schema;
-- malformed corpus records;
-- corpus-fingerprint mismatch;
-- infeasible repaired solutions;
-- exact-oracle inconsistency;
-- negative objective gaps beyond tolerance.
+## Repair scope
+
+The family decoders are deterministic heuristics. They guarantee feasibility only for the supported generated schemas:
+
+- one-constraint 0/1 knapsack;
+- edge-form maximum-weight independent set;
+- unit-right-hand-side set cover;
+- unit-capacity set packing.
+
+They do not establish optimality, a constant-factor approximation ratio, or feasibility for arbitrary user-provided BLPs that merely reuse a family label.
+
+## Neural claims
+
+The model provides no formal neural-network verification and no global approximation guarantee. The words *foundation model* refer to the shared-pretraining and transfer protocol. The implementation is a compact research fixture, not evidence that parameter scaling laws have been established.
+
+## Solver scope
+
+Exactness is relative to:
+
+- the finite binary model encoded by the repository;
+- SciPy/HiGHS status and tolerances;
+- the numerical audits performed after solving.
+
+Industrial solver features such as callbacks, warm starts, indicator constraints, SOS constraints, sparse matrix streaming, and distributed solving are outside v0.1.
