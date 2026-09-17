@@ -126,7 +126,7 @@ def route_cost(instance: RoutingInstance, routes: tuple[tuple[int, ...], ...]) -
         if load > instance.capacity + 1e-9:
             raise ValueError("CVRP capacity violated")
         seen.extend(route[1:-1])
-        for i, j in zip(route, route[1:]):
+        for i, j in itertools.pairwise(route):
             total += float(d[i, j])
     expected = list(range(1, instance.node_count))
     if sorted(seen) != expected:
@@ -293,7 +293,7 @@ def solution_edges(instance: RoutingInstance, solution: RoutingSolution) -> np.n
         if instance.task == "tsp":
             pairs = list(zip(route, route[1:] + route[:1], strict=True))
         else:
-            pairs = list(zip(route, route[1:]))
+            pairs = list(itertools.pairwise(route))
         for i, j in pairs:
             edges[i, j] = 1.0
             edges[j, i] = 1.0
