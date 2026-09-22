@@ -1,0 +1,40 @@
+name: RL4CO CVRP tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  rl4co-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run independent regression tests
+        run: |
+          python rl4co_cvrp_pomo_attention.py --self-test
+          python -m unittest discover -s tests -v
+
+      - name: Run RL4CO end-to-end CVRP smoke test
+        run: |
+          python rl4co_cvrp_pomo_attention.py \
+            --num-customers 10 \
+            --train-data-size 32 \
+            --val-data-size 16 \
+            --test-batch-size 8 \
+            --batch-size 8 \
+            --max-epochs 1 \
+            --num-encoder-layers 2 \
+            --seed 42

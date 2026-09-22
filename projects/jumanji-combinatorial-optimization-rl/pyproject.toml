@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jumanji-combinatorial-optimization-rl"
+version = "0.1.0"
+description = "JAX-native combinatorial optimization RL example with Jumanji"
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+  "jax>=0.4.26,<0.4.36",
+  "jumanji==1.1.1",
+  "numpy>=1.26,<3",
+  "requests>=2.31",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "pytest-cov>=5.0",
+]
+
+[project.scripts]
+jumanji-knapsack-demo = "jumanji_co.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-q --cov=jumanji_co --cov-report=term-missing --cov-fail-under=90"
+testpaths = ["tests"]
