@@ -1,4 +1,24 @@
-# Foundation-Style Multi-Task Neural Combinatorial Optimization
+# Neural Combinatorial Optimization
+
+<!-- portfolio-umbrella:start -->
+## Portfolio role
+
+This repository is the primary umbrella repository for this Jors Academy research area. Related projects have been consolidated under `projects/` so the methods, implementations, experiments, and case studies can be maintained and explored from one place.
+
+### Included projects
+
+- [`capacitated-vrp-rl4co-pomo-attention-model-python`](projects/capacitated-vrp-rl4co-pomo-attention-model-python/)
+- [`decision-transformer-combinatorial-optimization`](projects/decision-transformer-combinatorial-optimization/)
+- [`diffusion-neural-combinatorial-optimization-tsp-pytorch`](projects/diffusion-neural-combinatorial-optimization-tsp-pytorch/)
+- [`jumanji-combinatorial-optimization-rl`](projects/jumanji-combinatorial-optimization-rl/)
+- [`multi-objective-neural-combinatorial-optimization`](projects/multi-objective-neural-combinatorial-optimization/)
+- [`neural-combinatorial-optimization-tsp`](projects/neural-combinatorial-optimization-tsp/)
+- [`neural-combinatorial-optimization-tsp-attention-model-pytorch`](projects/neural-combinatorial-optimization-tsp-attention-model-pytorch/)
+- [`neural-large-neighborhood-search-cvrp`](projects/neural-large-neighborhood-search-cvrp/)
+- [`test-time-adaptation-neural-combinatorial-optimization`](projects/test-time-adaptation-neural-combinatorial-optimization/)
+
+Each consolidated project keeps its own files and a `SOURCE_REPOSITORY.md` provenance record. The snapshot preserves the source repository's default-branch files at consolidation time; repository-level history and metadata remain separate from the snapshot.
+<!-- portfolio-umbrella:end -->
 
 A verification-first research implementation for **multi-task, transferable neural combinatorial optimization**. The repository studies whether one task-conditioned neural policy can share useful routing structure across **TSP and CVRP**, rather than training one isolated model per problem.
 
